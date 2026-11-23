@@ -169,6 +169,7 @@ input, select {
 .cards b { display: block; font-size: clamp(1.45rem, 5vw, 1.8rem); margin: .35rem 0; }
 .cards label, .list small { color: theme("colors.muted"); }
 .summary, .notice { @apply rounded-control bg-control; padding: .75rem; }
+.module-nutrition > .notice { margin: 0 0 1.25rem; }
 .error { color: theme("colors.danger"); }
 .list { list-style: none; padding: 0; margin: 0; }
 .list li { display: flex; justify-content: space-between; gap: .75rem; padding: .65rem 0; border-bottom: 1px solid theme("colors.edge"); }
@@ -193,7 +194,7 @@ input, select {
   .module { padding-inline: 1rem; }
 }
 .budget-list { display: grid; gap: .75rem; margin-top: 1rem; }
-.nutrition-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-bottom: 1rem; }.nutrition-kcal { display: grid; gap: .15rem; margin-bottom: 1rem; }.nutrition-kcal b { font-size: 2.2rem; color: var(--accent); }.nutrition-kcal span { color: theme("colors.muted"); }.nutrition-macros { display: grid; gap: .7rem; }.nutrition-macros div { display: grid; gap: .25rem; }.nutrition-macros span { color: theme("colors.muted"); font-size: .82rem; }.nutrition-macros b { font-size: .9rem; }.nutrition-chart { height: 220px; }.nutrition-analyze, .nutrition-meal-form, .nutrition-goals { display: grid; gap: .75rem; }.nutrition-analyze textarea { min-height: 5rem; resize: vertical; }.nutrition-meal-form { grid-template-columns: minmax(0, 1fr); }.nutrition-meal-form .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.nutrition-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-bottom: 1rem; }.nutrition-kcal { display: grid; gap: .15rem; margin-bottom: 1rem; }.nutrition-kcal b { font-size: 2.2rem; color: var(--accent); }.nutrition-kcal span { color: theme("colors.muted"); }.nutrition-macros { display: grid; gap: .7rem; }.nutrition-macros div { display: grid; gap: .25rem; }.nutrition-macros span { color: theme("colors.muted"); font-size: .82rem; }.nutrition-macros b { font-size: .9rem; }.nutrition-chart { height: 220px; }.nutrition-analyze, .nutrition-meal-form, .nutrition-goals { display: grid; gap: .75rem; }.nutrition-analyze textarea { min-height: 6rem; padding: .8rem .9rem; resize: vertical; border: 1px solid theme("colors.edge"); border-radius: theme("borderRadius.control"); outline: 0; background: theme("colors.canvas"); color: theme("colors.ink"); line-height: 1.45; box-shadow: inset 0 1px 1px rgb(0 0 0 / .16); }.nutrition-analyze textarea::placeholder { color: theme("colors.muted"); }.nutrition-analyze textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }.nutrition-meal-form { grid-template-columns: minmax(0, 1fr); }.nutrition-meal-form .actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 @media (min-width: 700px) { .nutrition-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.nutrition-analyze, .nutrition-meal-form, .nutrition-goals { grid-template-columns: repeat(2, minmax(0, 1fr)); }.nutrition-analyze > button, .nutrition-meal-form .actions, .nutrition-goals > button { grid-column: 1 / -1; justify-self: start; } }
 .budget-list div { display: grid; gap: .3rem; }
 progress { width: 100%; accent-color: var(--accent); }
