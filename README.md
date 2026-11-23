@@ -1,6 +1,13 @@
-# Holos — fase 1
+# Holos — fase 1.5
 
-Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Esta primera fase incluye salud, peso, objetivos, finanzas, autenticación JWT y aislamiento multiusuario.
+Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, peso, objetivos, finanzas, autenticación JWT y aislamiento multiusuario.
+
+## Estado y funciones
+
+- Panel con evolución de peso, línea de objetivo, kcal diarias y últimos movimientos.
+- Finanzas con ingresos/gastos de seis meses, filtros, análisis por categoría y presupuestos mensuales.
+- Categorías iniciales idempotentes: Supermercado, Nómina, Transporte, Ocio, Salud, Hogar y Otros.
+- Edición y borrado de pesos y movimientos desde la PWA.
 
 ## Arranque en Raspberry Pi
 

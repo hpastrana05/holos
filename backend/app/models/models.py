@@ -1,7 +1,7 @@
 import enum
 from typing import Optional
 from datetime import date, datetime
-from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
@@ -61,6 +61,16 @@ class Category(Base):
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
     name: Mapped[str] = mapped_column(String(100))
     kind: Mapped[TransactionType] = mapped_column(Enum(TransactionType))
+
+class CategoryBudget(Base):
+    __tablename__ = "category_budgets"
+    __table_args__ = (UniqueConstraint("household_id", "category_id", "year", "month", name="uq_category_budget_period"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), index=True)
+    year: Mapped[int] = mapped_column(Integer)
+    month: Mapped[int] = mapped_column(Integer)
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
 
 class Transaction(Base):
     __tablename__ = "transactions"

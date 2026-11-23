@@ -13,5 +13,7 @@ class WeightGoalIn(BaseModel): start_weight_kg: float; target_weight_kg: float; 
 class WeightGoalOut(WeightGoalIn, ORM): id: int; user_id: int
 class CategoryIn(BaseModel): name: str = Field(min_length=1, max_length=100); kind: TransactionType
 class CategoryOut(CategoryIn, ORM): id: int; household_id: int
+class CategoryBudgetIn(BaseModel): category_id: int; year: int = Field(ge=2000, le=2100); month: int = Field(ge=1, le=12); amount: float = Field(gt=0)
+class CategoryBudgetOut(CategoryBudgetIn, ORM): id: int; household_id: int
 class TransactionIn(BaseModel): kind: TransactionType; amount: float = Field(gt=0); category_id: int | None = None; date: date; note: str | None = None; visibility: Visibility = Visibility.personal
 class TransactionOut(TransactionIn, ORM): id: int; user_id: int; household_id: int
