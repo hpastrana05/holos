@@ -30,6 +30,7 @@ class ScreenTransaction(ORM):
 
 
 class ScreenSummary(BaseModel):
+    user_name: str
     current_weight_kg: float | None
     target_kcal: int | None
     monthly_balance: float

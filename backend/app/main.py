@@ -1,15 +1,13 @@
 from calendar import monthrange
 from datetime import date, datetime
-from secrets import compare_digest
 from typing import Annotated
 from zoneinfo import ZoneInfo
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
-from app.core.config import settings
 from app.core.security import create_token, current_user, verify_password
 from app.db.session import get_db
 from app.models.models import (
@@ -39,10 +37,17 @@ from app.schemas import (
     WeightGoalIn,
     WeightGoalOut,
 )
+from app.screen_access import router as screen_router
+from app.screen_access import screen_user
 from app.services.health import estimate_arrival, target_kcal
+from app.settings_routes import PublicUser
+from app.settings_routes import router as settings_router
 
 app = FastAPI(title="Holos API", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:8080"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+app.include_router(settings_router)
+app.include_router(screen_router)
 
 def owned(model, item_id, user, db):
     item = db.query(model).filter(model.id == item_id, model.user_id == user.id).first()
@@ -76,16 +81,8 @@ def daily_kcal(profile, weight, goal):
 def screen_summary(
     response: Response,
     db: Annotated[Session, Depends(get_db)],
-    x_screen_token: Annotated[str, Header()] = "",
+    user: Annotated[User, Depends(screen_user)],
 ):
-    if not settings.screen_token or not compare_digest(
-        x_screen_token.encode(), settings.screen_token.encode()
-    ):
-        raise HTTPException(401, "Token de pantalla inválido")
-    user = db.query(User).filter_by(email=settings.screen_user_email, is_active=True).first()
-    if not user:
-        raise HTTPException(401, "Pantalla sin usuario autorizado")
-
     today = datetime.now(ZoneInfo("Europe/Madrid")).date()
     latest = (
         db.query(WeightEntry).filter_by(user_id=user.id)
@@ -95,14 +92,15 @@ def screen_summary(
     profile = db.query(HealthProfile).filter_by(user_id=user.id).first()
     goal = db.query(WeightGoal).filter_by(user_id=user.id, active=True).first()
     recent = (
-        db.query(Transaction).filter(visible_transactions(user), Transaction.date <= today)
+        db.query(Transaction).filter(Transaction.user_id == user.id, Transaction.date <= today)
         .order_by(Transaction.date.desc(), Transaction.id.desc()).limit(3).all()
     )
     response.headers["Cache-Control"] = "no-store"
     return {
+        "user_name": PublicUser.from_user(user).name,
         "current_weight_kg": weight,
         "target_kcal": daily_kcal(profile, weight, goal),
-        "monthly_balance": summary_for_range(*period(today.year, today.month), user, db)["balance"],
+        "monthly_balance": summary_for_range(*period(today.year, today.month), user, db, screen_only=True)["balance"],
         "recent_transactions": recent,
     }
 
@@ -112,7 +110,7 @@ def health(): return {"status": "ok"}
 @app.post("/auth/login", response_model=Token)
 def login(data: LoginIn, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email).first()
-    if not user or not verify_password(data.password, user.password_hash): raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Credenciales incorrectas")
+    if not user or not user.is_active or not verify_password(data.password, user.password_hash): raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Credenciales incorrectas")
     return Token(access_token=create_token(user))
 
 @app.get("/health/profile", response_model=HealthProfileOut | None)
@@ -188,8 +186,9 @@ def edit_transaction(item_id: int, data: TransactionIn, user: User = Depends(cur
 @app.delete("/finance/transactions/{item_id}", status_code=204)
 def delete_transaction(item_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)): db.delete(owned(Transaction, item_id, user, db)); db.commit()
 
-def summary_for_range(start, end, user, db):
-    rows = db.query(Transaction.kind, func.sum(Transaction.amount)).filter(visible_transactions(user), Transaction.date.between(start, end)).group_by(Transaction.kind).all(); totals = {kind.value: float(amount) for kind, amount in rows}; income, expense = totals.get("income", 0), totals.get("expense", 0); return {"income": income, "expense": expense, "balance": income - expense}
+def summary_for_range(start, end, user, db, *, screen_only=False):
+    scope = Transaction.user_id == user.id if screen_only else visible_transactions(user)
+    rows = db.query(Transaction.kind, func.sum(Transaction.amount)).filter(scope, Transaction.date.between(start, end)).group_by(Transaction.kind).all(); totals = {kind.value: float(amount) for kind, amount in rows}; income, expense = totals.get("income", 0), totals.get("expense", 0); return {"income": income, "expense": expense, "balance": income - expense}
 @app.get("/finance/summary/monthly")
 def monthly_summary(year: int = Query(...), month: int = Query(..., ge=1, le=12), user: User = Depends(current_user), db: Session = Depends(get_db)): return summary_for_range(*period(year, month), user, db)
 @app.get("/finance/summary/monthly-series")

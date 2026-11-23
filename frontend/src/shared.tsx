@@ -19,11 +19,10 @@ export const api = async (path: string, token: string, options: RequestInit = {}
       ...options.headers,
     },
   });
-  if (!response.ok)
-    throw new Error(
-      (await response.json().catch(() => ({}))).detail ||
-        "No se pudo completar la operación",
-    );
+  if (!response.ok) {
+    const { detail } = await response.json().catch(() => ({}));
+    throw new Error(typeof detail === "string" ? detail : "Revisa los datos introducidos e inténtalo de nuevo.");
+  }
   return response.status === 204 ? null : response.json();
 };
 export type Notice = { text: string; error?: boolean } | null;

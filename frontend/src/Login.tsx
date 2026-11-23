@@ -22,13 +22,15 @@ export default function Login({ onLogin }: { onLogin: (value: string) => void })
               ).access_token,
             );
           } catch {
-            setError("Correo o contraseña incorrectos");
+            setError("Usuario o contraseña incorrectos");
           }
         }}
       >
-        <Field label="Correo">
+        <Field label="Correo o usuario">
           <input
-            type="email"
+            type="text"
+            autoComplete="username"
+            autoCapitalize="none"
             placeholder="tu@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}

@@ -49,7 +49,7 @@ button.danger { background: theme("colors.danger"); }
   background: theme("colors.control");
 }
 .brand { display: none; }
-.sidebar nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .2rem; }
+.sidebar nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .2rem; }
 .sidebar button, .sidebar a {
   display: flex;
   flex-direction: column;
@@ -248,4 +248,80 @@ progress { width: 100%; accent-color: var(--accent); }
 @media (max-height: 460px) {
   .screen { gap: .4rem; padding-top: calc(2.5rem + env(safe-area-inset-top)); }
   .screen-grid section { padding: .45rem .6rem; }
+}
+
+.settings-grid { display: grid; gap: 1rem; align-items: start; }
+.settings-users { margin-bottom: .85rem; }
+.settings-user { min-width: 0; display: flex; align-items: center; gap: .75rem; overflow-wrap: anywhere; }
+.settings-user small { display: block; }
+.account-avatar {
+  @apply rounded-control bg-control;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 2.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 1.1rem;
+  font-weight: 750;
+}
+.settings-form { margin-top: 1rem; }
+.settings-form input[type="color"] { min-height: 2.5rem; }
+.settings-checkbox { display: flex; align-items: center; gap: .6rem; }
+.settings-checkbox input { width: auto; }
+@media (min-width: 768px) {
+  .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.screen-setup { max-height: 100%; overflow: hidden; }
+.screen-profiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: 54vh;
+  overflow-y: auto;
+  gap: .4rem;
+}
+.screen-profiles button { display: flex; align-items: center; gap: .4rem; text-align: left; overflow-wrap: anywhere; }
+.screen-profiles button span:last-child { min-width: 0; }
+.screen-slides {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(.35rem, 1.4vh, 1rem);
+  width: 100%;
+  min-height: 0;
+  touch-action: pan-y;
+}
+.screen-pages { justify-content: center; }
+.screen-pages button { padding: .3rem .6rem; font-size: .72rem; }
+.screen-pages [aria-current] { border-color: var(--accent); background: theme("colors.panel"); }
+.screen-weather {
+  --weather-temperature: theme("colors.nutrition");
+  --weather-rain: theme("colors.house");
+  width: min(100%, 64rem);
+  display: grid;
+  gap: .55rem;
+  font-size: clamp(.72rem, 2.3vh, .95rem);
+}
+.screen-weather h2, .screen-weather h3 { margin-bottom: .2rem; }
+.screen-weather h2 { font-size: clamp(1rem, 4vh, 1.45rem); overflow-wrap: anywhere; }
+.screen-weather h3 { font-size: .88rem; }
+.screen-weather .state { font-size: inherit; }
+.weather-temperature { color: var(--weather-temperature); font-weight: 750; font-size: clamp(1.75rem, 6.5vh, 3.75rem); line-height: 1.1; }
+.weather-details { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; margin-top: .4rem; }
+.weather-details dt { color: theme("colors.muted"); }
+.weather-details dd { font-weight: 700; }
+.weather-hourly { min-width: 0; }
+.weather-chart { height: clamp(95px, 24vh, 240px); }
+.weather-legend, .screen-weather footer { display: flex; flex-wrap: wrap; gap: .25rem .65rem; font-size: .7rem; }
+.weather-legend span:first-child { color: var(--weather-temperature); }
+.weather-legend span:last-child { color: var(--weather-rain); }
+.screen-weather footer a { color: theme("colors.muted"); text-decoration: underline; }
+@media (orientation: landscape) {
+  .screen-weather { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); align-items: center; }
+  .screen-weather footer { grid-column: 1 / -1; }
+}
+@media (max-height: 470px) {
+  .screen-weather { padding: .45rem .65rem; gap: .3rem; }
+  .screen-slides .screen-clock time { font-size: clamp(2.25rem, 12vh, 3rem); }
+  .screen-weather h2 { font-size: .95rem; }
 }

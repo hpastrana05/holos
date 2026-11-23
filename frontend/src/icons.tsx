@@ -7,6 +7,7 @@ const paths = {
   house: "M3 10 12 3l9 7v10H3z M11 17l3-4h-4l3-4",
   chat: "M21 4H3v13h5v4l5-4h8z M7 9h10 M7 13h6",
   logout: "M10 4H4v16h6 M9 12h12 M17 8l4 4-4 4",
+  settings: "M4 7h16 M4 12h16 M4 17h16 M8 5v4 M15 10v4 M10 15v4",
   screen: "M3 4h18v13H3z M12 17v4 M8 21h8",
 };
 

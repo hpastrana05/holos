@@ -1,4 +1,4 @@
-# Holos — fase 1.6
+# Holos — fase 1.7
 
 Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, peso, objetivos, finanzas, autenticación JWT y aislamiento multiusuario.
 
@@ -22,20 +22,23 @@ Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, pe
    docker compose up -d --build
    ```
 
-4. Abre `http://IP_DE_LA_RASPBERRY:8080`. El usuario inicial es `HOLOS_ADMIN_EMAIL`.
+4. Abre `http://IP_DE_LA_RASPBERRY:8080`. El usuario inicial es `HOLOS_ADMIN_EMAIL`. El servidor también acepta `SECRET_KEY`, que tiene prioridad sobre `HOLOS_SECRET_KEY` si se configuran ambos.
 
 Las imágenes parten de `python:3.12-slim`, Node y Nginx, disponibles para arm64. La base de datos queda en el volumen Docker `holos-data`, con SQLite en modo WAL. En cada inicio el backend aplica las migraciones y ejecuta un seed idempotente del hogar y administrador.
 
-## Pantalla fija y PWA
+## Ajustes y usuarios
 
-En el `.env` de Compose (o en `backend/.env` para desarrollo) configura:
+Un administrador puede crear, editar y desactivar cuentas de su hogar en **Ajustes → Usuarios**. Cada cuenta tiene un correo o nombre de usuario, contraseña, rol, nombre visible, color y avatar. Puedes añadir un PIN de pantalla de 4 a 8 cifras. Desactivar la cuenta conserva sus datos y revoca su acceso. Debe quedar al menos un administrador activo.
 
-- `SCREEN_TOKEN` es un secreto exclusivo de la pantalla. Genera uno con `openssl rand -hex 32`.
-- `SCREEN_USER_EMAIL` es el correo de un usuario activo de Holos. Su pantalla muestra su peso, objetivo diario y balance del mes, además de los tres últimos movimientos visibles para él. Se incluyen sus movimientos y los compartidos por su hogar. Las notas quedan fuera del resumen.
+## Pantalla fija, tiempo y PWA
 
-Si falta algún valor, la pantalla queda desactivada. Tras editar el `.env`, aplica los cambios con `docker compose up -d backend`. Abre `/pantalla` en el dispositivo e introduce el token una vez. Holos lo guarda en ese navegador y lo envía en la cabecera `X-Screen-Token` al endpoint `GET /api/screen/summary`. Usa «Olvidar token» para quitarlo de ese dispositivo o cambia el secreto del servidor para revocarlo. El token solo sirve para consultar ese resumen.
+Abre `/pantalla` por HTTPS con Tailscale y elige un perfil. Si tiene PIN, introdúcelo para iniciar la sesión. Los nombres, los avatares y los colores de los perfiles activos del hogar configurado se muestran a cualquiera que tenga acceso a Holos. **Si un perfil carece de PIN, esas personas también pueden abrir su resumen de pantalla.**
 
-Accede al frontend por HTTPS con `tailscale serve`. En `/pantalla`, toca «Pantalla completa». Holos solicita Wake Lock mientras la página está visible y vuelve a solicitarlo al regresar a ella, si el navegador lo permite. La pantalla se adapta al móvil en vertical y a la tablet en horizontal. El resumen se consulta cada 60 segundos. El reloj y el mes de referencia usan la zona horaria de Madrid.
+La sesión dura 30 días y se recuerda en el navegador. «Cambiar de usuario» vuelve al selector. El resumen de solo lectura muestra el peso, las kcal y el balance y movimientos registrados por la persona seleccionada. El cambio de PIN y la desactivación de la cuenta invalidan sus sesiones de pantalla. Tras actualizar desde la fase 1.6, basta con volver a `/pantalla` y elegir un perfil.
+
+El resumen y el tiempo alternan cada 20 segundos. También puedes deslizar o tocar los indicadores. Los datos se consultan cada 60 segundos. «Pantalla completa» y Wake Lock siguen disponibles en navegadores compatibles.
+
+Un administrador puede cambiar el nombre, la latitud y la longitud desde **Ajustes → Ubicación del tiempo**. La ubicación se guarda por hogar y parte de Toledo. El pronóstico horario de [Open-Meteo](https://open-meteo.com/) usa la zona Europe/Madrid y una caché en memoria de 30 minutos. Si el servicio falla, Holos muestra el último pronóstico disponible de esa ubicación con un aviso.
 
 Para instalar Holos, abre la dirección HTTPS en Chrome para Android y usa «Instalar aplicación» o «Añadir a pantalla de inicio» en el menú. La aplicación abre en modo independiente y el acceso directo «Pantalla fija» abre `/pantalla` desde los launchers compatibles.
 
@@ -76,4 +79,4 @@ Crea y conserva el directorio de backups en un volumen distinto o sincronízalo 
 - Los datos de salud y peso siempre se filtran por `user_id`.
 - Las categorías pertenecen a `household_id`.
 - Las transacciones personales solo las ve su creador; las compartidas las ven los miembros del mismo hogar.
-- El API no ofrece todavía gestión de usuarios, chat, voz, nutrición, Calendar ni Home Assistant.
+- La gestión de usuarios y los cambios de ubicación requieren un administrador del hogar.

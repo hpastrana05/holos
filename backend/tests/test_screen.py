@@ -7,11 +7,20 @@ from app.core.config import settings
 from tests.conftest import token
 
 
+@pytest.fixture(autouse=True)
+def screen_household(monkeypatch):
+    from app.screen_access import pin_attempts
+
+    monkeypatch.setattr(settings, "household_name", "Hogar de prueba")
+    pin_attempts.clear()
+
+
 @pytest.fixture
-def screen_headers(monkeypatch):
-    monkeypatch.setattr(settings, "screen_token", "test-screen-token")
-    monkeypatch.setattr(settings, "screen_user_email", "admin@test.local")
-    return {"X-Screen-Token": "test-screen-token"}
+def screen_headers(client):
+    user = client.get("/screen/users").json()[0]
+    response = client.post("/screen/session", json={"user_id": user["id"]})
+    assert response.status_code == 200
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 def test_screen_scope(client, screen_headers):
@@ -66,21 +75,79 @@ def test_screen_scope(client, screen_headers):
         == client.get("/health/summary", headers=token(client)).json()["target_kcal"]
     )
     assert data["target_kcal"] > 0
-    assert data["monthly_balance"] == -140
-    assert [item["amount"] for item in data["recent_transactions"]] == [20, 120]
+    assert data["monthly_balance"] == -120
+    assert [item["amount"] for item in data["recent_transactions"]] == [120]
     assert set(data["recent_transactions"][0]) == {"id", "amount", "kind", "date"}
 
 
-def test_screen_rejects_invalid_or_disabled_token(client, screen_headers, monkeypatch):
-    assert client.get("/screen/summary").status_code == 401
+def test_selector_and_pin(client):
+    admin = token(client)
+    users = client.get("/screen/users").json()
+    assert [user["name"] for user in users] == ["Usuario 1", "Usuario 2"]
+    assert set(users[0]) == {"id", "name", "color", "avatar"}
+    assert client.get("/screen/summary").status_code in (401, 403)
+    assert client.get("/screen/weather").status_code in (401, 403)
+    assert client.get("/screen/summary", headers=admin).status_code == 401
+
+    user_id = users[1]["id"]
+    session = client.post("/screen/session", json={"user_id": user_id}).json()
+    old_headers = {"Authorization": f"Bearer {session['access_token']}"}
+    edit = {
+        "name": "Miembro",
+        "email": "member@test.local",
+        "is_active": True,
+        "pin": "0123",
+    }
     assert (
-        client.get("/screen/summary", headers={"X-Screen-Token": "wrong"}).status_code
-        == 401
+        client.put(f"/settings/users/{user_id}", headers=admin, json=edit).status_code
+        == 200
     )
-    monkeypatch.setattr(settings, "screen_user_email", "")
-    assert client.get("/screen/summary", headers=screen_headers).status_code == 401
-    monkeypatch.setattr(settings, "screen_token", "")
-    assert client.get("/screen/summary", headers=screen_headers).status_code == 401
+    assert client.get("/screen/summary", headers=old_headers).status_code == 401
+    assert (
+        client.post("/screen/session", json={"user_id": user_id}).json()["detail"][
+            "code"
+        ]
+        == "pin_required"
+    )
+    for _ in range(5):
+        assert (
+            client.post(
+                "/screen/session", json={"user_id": user_id, "pin": "1234"}
+            ).status_code
+            == 401
+        )
+    assert (
+        client.post(
+            "/screen/session", json={"user_id": user_id, "pin": "0123"}
+        ).status_code
+        == 429
+    )
+
+    from app.screen_access import pin_attempts
+
+    pin_attempts.pop(user_id)
+    valid = client.post("/screen/session", json={"user_id": user_id, "pin": "0123"})
+    assert valid.status_code == 200
+    headers = {"Authorization": f"Bearer {valid.json()['access_token']}"}
+    assert (
+        client.get("/screen/summary", headers=headers).json()["user_name"] == "Miembro"
+    )
+    assert (
+        client.put(
+            f"/settings/users/{user_id}",
+            headers=admin,
+            json={**edit, "is_active": False},
+        ).status_code
+        == 200
+    )
+    assert client.get("/screen/summary", headers=headers).status_code == 401
+    assert (
+        client.post(
+            "/screen/session", json={"user_id": user_id, "pin": "0123"}
+        ).status_code
+        == 404
+    )
+    assert client.get("/screen/users").json() == users[:1]
 
 
 def test_screen_token_is_read_only(client, screen_headers):
@@ -92,7 +159,8 @@ def test_screen_token_is_read_only(client, screen_headers):
             == 405
         )
 
-    bearer = {"Authorization": f"Bearer {screen_headers['X-Screen-Token']}"}
+    bearer = screen_headers
+    assert client.get("/settings/users", headers=bearer).status_code == 401
     assert client.get("/health/summary", headers=bearer).status_code == 401
     assert (
         client.post(

@@ -14,12 +14,20 @@ class Household(Base):
     __tablename__ = "households"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True)
+    weather_name: Mapped[str] = mapped_column(String(120), default="Toledo")
+    weather_latitude: Mapped[float] = mapped_column(Float, default=39.8628)
+    weather_longitude: Mapped[float] = mapped_column(Float, default=-4.0273)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    display_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    color: Mapped[str] = mapped_column(String(7), default="#b7a7ff")
+    avatar: Mapped[str] = mapped_column(String(16), default="initial")
+    screen_pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    screen_version: Mapped[int] = mapped_column(Integer, default=0)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[Role] = mapped_column(Enum(Role), default=Role.member)
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)

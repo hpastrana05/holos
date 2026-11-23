@@ -8,7 +8,8 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 ## Estado del proyecto
 - Fase 1 hecha: base, login JWT, salud y finanzas (CRUD).
 - Fase 1.5 hecha: gráficos, listados, edición, presupuestos y responsive.
-- Fase 1.6 en curso: rediseño launcher oscuro y modo pantalla fija.
+- Fase 1.6 hecha: rediseño launcher oscuro y modo pantalla fija.
+- Fase 1.7 hecha: ajustes de usuarios, selector con PIN opcional y tiempo en pantalla fija.
 - Siguientes: chat + voz, nutrición, Home Assistant, Google Calendar,
   Telegram (opcional).
 - No implementes módulos de fases futuras sin que lo pida.
@@ -47,9 +48,9 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 
 ## Modo pantalla fija (`/pantalla`)
 - Pensado para un móvil/tablet Android fijo en casa. Sin scroll.
-- Acceso con token de solo lectura definido en `.env`; sin login interactivo.
+- Selector del hogar con PIN opcional por usuario y sesión de solo lectura.
 - Reloj grande, resumen de peso y kcal, balance del mes y últimos movimientos.
-- Se actualiza solo cada 60 s.
+- El resumen personal y el tiempo rotan cada 20 s y se actualizan cada 60 s.
 - Pantalla completa y sin apagado (Wake Lock API).
 - Preparada para añadir tarjetas de Casa (consumo, dispositivos, escenas).
 
@@ -81,8 +82,7 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Transacciones con `visibility`: personal o shared.
 - Autenticación con login + JWT. Toda consulta filtra por el usuario actual.
 - Integraciones (Google Calendar) con credenciales por usuario.
-- El token de `/pantalla` es de solo lectura y no da acceso a datos privados
-  de otros usuarios.
+- La sesión de `/pantalla` es de solo lectura y se limita al usuario seleccionado.
 - Incluye tests de aislamiento entre usuarios.
 
 ## Canales del agente

@@ -4,6 +4,7 @@ import { Icon, type IconName } from "./icons";
 import Login from "./Login";
 import "./style.css";
 
+const Settings = lazy(() => import("./Settings"));
 const Screen = lazy(() => import("./Screen"));
 const Dashboard = lazy(() => import("./views").then(({ Dashboard }) => ({ default: Dashboard })));
 const Health = lazy(() => import("./views").then(({ Health }) => ({ default: Health })));
@@ -15,7 +16,7 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   });
 }
 
-type Tab = "dashboard" | "health" | "finance";
+type Tab = "dashboard" | "health" | "finance" | "settings";
 const modules: { icon: IconName; label: string; tab?: Tab }[] = [
   { icon: "health", label: "Salud", tab: "health" },
   { icon: "finance", label: "Finanzas", tab: "finance" },
@@ -77,6 +78,7 @@ function App() {
               <Icon name={icon} /><span>{label}</span>
             </button>
           ))}
+          <button type="button" aria-current={tab === "settings" ? "page" : undefined} onClick={() => open("settings")}><Icon name="settings" /><span>Ajustes</span></button>
           <a href="/pantalla"><Icon name="screen" /><span>Pantalla</span></a>
           <button type="button" onClick={() => {
             localStorage.removeItem("holos-token");
@@ -91,6 +93,7 @@ function App() {
           {tab === "dashboard" && <Dashboard token={token} />}
           {tab === "health" && <Health token={token} />}
           {tab === "finance" && <Finance token={token} />}
+          {tab === "settings" && <Settings token={token} />}
         </Suspense>
       </main>
     </div>

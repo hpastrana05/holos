@@ -15,7 +15,7 @@ def seed():
         household = db.query(Household).filter_by(name=settings.household_name).first()
         if not household:
             household = Household(name=settings.household_name); db.add(household); db.flush()
-        if not db.query(User).filter_by(email=settings.admin_email).first():
+        if not db.query(User).filter_by(household_id=household.id).first():
             db.add(User(email=settings.admin_email, password_hash=hash_password(settings.admin_password), role=Role.admin, household_id=household.id))
         existing = {category.name for category in db.query(Category).filter_by(household_id=household.id)}
         for name, kind in DEFAULT_CATEGORIES.items():
