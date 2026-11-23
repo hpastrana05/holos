@@ -2,7 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Icon, type IconName } from "./icons";
 import Login from "./Login";
-import { ChatFloating, ChatPanel } from "./Chat";
+import { ChatFloating, ChatView, useChat } from "./Chat";
 import "./style.css";
 
 const Settings = lazy(() => import("./Settings"));
@@ -56,9 +56,11 @@ function Launcher({ open }: { open: (tab: Tab) => void }) {
 
 function App() {
   const [token, setToken] = useState(() => localStorage.getItem("holos-token") || "");
-  const [tab, setTab] = useState<Tab>("dashboard");
+  const [tab, setTab] = useState<Tab>(() => location.pathname.replace(/\/$/, "") === "/chat" ? "chat" : "dashboard");
+  const chat = useChat(token);
   const open = (next: Tab) => {
     setTab(next);
+    history.pushState({}, "", next === "chat" ? "/chat" : "/");
     window.scrollTo(0, 0);
   };
   if (!token) {
@@ -94,11 +96,11 @@ function App() {
           {tab === "dashboard" && <Dashboard token={token} />}
           {tab === "health" && <Health token={token} />}
           {tab === "finance" && <Finance token={token} />}
-          {tab === "chat" && <><h2>Chat</h2><ChatPanel token={token} /></>}
+          {tab === "chat" && <ChatView chat={chat} token={token} onOpenModule={open} />}
           {tab === "settings" && <Settings token={token} />}
         </Suspense>
       </main>
-      <ChatFloating token={token} />
+      <ChatFloating chat={chat} token={token} onOpenModule={open} />
     </div>
   );
 }

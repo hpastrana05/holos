@@ -8,6 +8,8 @@ Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, pe
 - Pantalla fija de solo lectura y PWA instalable en Android.
 - Chat con Gemini por texto y voz, con herramientas limitadas y auditadas.
 
+El módulo **Chat** está disponible desde el launcher y directamente en `/chat`; el botón flotante conserva la misma conversación mientras navegas. Los mensajes y el historial breve se mantienen solo en el navegador durante la sesión.
+
 - Panel con evolución de peso, línea de objetivo, kcal diarias y últimos movimientos.
 - Finanzas con ingresos/gastos de seis meses, filtros, análisis por categoría y presupuestos mensuales.
 - Categorías iniciales idempotentes: Supermercado, Nómina, Transporte, Ocio, Salud, Hogar y Otros.
