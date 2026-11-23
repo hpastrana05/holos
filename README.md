@@ -1,4 +1,4 @@
-# Holos — fase 2
+# Holos — fase 3
 
 Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, peso, objetivos, finanzas, autenticación JWT y aislamiento multiusuario.
 
@@ -7,6 +7,7 @@ Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, pe
 - Launcher oscuro «Tu Holos», con una columna en móvil, dos en tablet y cuadrículas más amplias con barra lateral a partir de 1024 px.
 - Pantalla fija de solo lectura y PWA instalable en Android.
 - Chat con Gemini por texto y voz, con herramientas limitadas y auditadas.
+- Nutrición: estimación orientativa por texto o foto, registro privado de comidas, macros y evolución de siete días.
 
 El módulo **Chat** está disponible desde el launcher y directamente en `/chat`; el botón flotante conserva la misma conversación mientras navegas. Los mensajes y el historial breve se mantienen solo en el navegador durante la sesión.
 
@@ -85,3 +86,4 @@ Crea y conserva el directorio de backups en un volumen distinto o sincronízalo 
 - Las transacciones personales solo las ve su creador; las compartidas las ven los miembros del mismo hogar.
 - La gestión de usuarios y los cambios de ubicación requieren un administrador del hogar.
 - El chat solo puede crear gastos, ingresos y pesos, o consultar datos. Cada uso de herramienta registra usuario, herramienta, argumentos y resultado en `agent_actions`; no se guarda el texto completo de la conversación.
+- Las fotos de comida se reducen en memoria antes de enviarse a Gemini y se descartan al terminar la petición; no se guardan en la base de datos ni en logs. Las estimaciones no sustituyen consejo sanitario profesional.

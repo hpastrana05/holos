@@ -1,6 +1,7 @@
 """Small provider boundary: the application never depends on Gemini in routes."""
 
 from dataclasses import dataclass
+import json
 from time import sleep
 from typing import Protocol
 
@@ -29,6 +30,7 @@ class LLMQuotaExceeded(LLMUnavailable):
 
 class LLMProvider(Protocol):
     def complete(self, *, system: str, messages: list[dict], tools: list[dict]) -> LLMResponse: ...
+    def analyze_meal(self, *, text: str | None, image: bytes | None, mime_type: str | None) -> list[dict]: ...
 
 
 class GeminiProvider:
@@ -70,4 +72,31 @@ class GeminiProvider:
                         sleep(attempt + 1)
         except LLMUnavailable:
             raise
+
+    def analyze_meal(self, *, text: str | None, image: bytes | None, mime_type: str | None) -> list[dict]:
+        if not self.api_key or not self.model:
+            raise LLMUnavailable("Configura GEMINI_API_KEY y GEMINI_MODEL para analizar comidas.")
+        try:
+            from google import genai
+            from google.genai import types
+        except ImportError as error:
+            raise LLMUnavailable("El proveedor Gemini no está instalado en el servidor.") from error
+        prompt = """Estima una comida de forma orientativa. Devuelve exclusivamente JSON con {\"meals\":[{\"name\":str,\"description\":str,\"kcal\":number,\"protein_g\":number,\"carbs_g\":number,\"fat_g\":number,\"confidence\":number}]} . No inventes certezas: usa confidence entre 0 y 1. Si no reconoces la comida devuelve meals vacío."""
+        parts = [types.Part.from_text(text=prompt + (f" Texto del usuario: {text}" if text else ""))]
+        if image: parts.append(types.Part.from_bytes(data=image, mime_type=mime_type or "image/jpeg"))
+        try:
+            client = genai.Client(api_key=self.api_key)
+            for attempt in range(3):
+                try:
+                    response = client.models.generate_content(model=self.model, contents=[{"role": "user", "parts": parts}], config=types.GenerateContentConfig(response_mime_type="application/json"))
+                    data = json.loads(response.text or "{}")
+                    meals = data.get("meals", [])
+                    if not isinstance(meals, list): raise ValueError("Respuesta de análisis no válida")
+                    return meals
+                except Exception as error:
+                    if (getattr(error, "status_code", None) or getattr(error, "code", None)) == 429:
+                        if attempt == 2: raise LLMQuotaExceeded("Se ha alcanzado temporalmente la cuota gratuita de Gemini.") from error
+                    elif attempt == 2: raise LLMUnavailable("No he podido analizar la comida ahora. Inténtalo más tarde.") from error
+                    sleep(attempt + 1)
+        except LLMUnavailable: raise
 

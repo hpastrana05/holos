@@ -1,8 +1,8 @@
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.models import TransactionType, Visibility
+from app.models.models import MealSource, MealType, TransactionType, Visibility
 
 
 class ORM(BaseModel): model_config = ConfigDict(from_attributes=True)
@@ -51,3 +51,23 @@ class AgentActionOut(BaseModel):
 class AgentChatOut(BaseModel):
     response: str
     actions: list[AgentActionOut]
+
+class NutritionGoalIn(BaseModel):
+    protein_g: float = Field(gt=0, le=500)
+    carbs_g: float = Field(gt=0, le=1000)
+    fat_g: float = Field(gt=0, le=500)
+class NutritionGoalOut(NutritionGoalIn, ORM): id: int; user_id: int; kcal: int
+class MealIn(BaseModel):
+    eaten_at: datetime
+    meal_type: MealType
+    name: str = Field(min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=2000)
+    kcal: float = Field(ge=0, le=10000)
+    protein_g: float = Field(ge=0, le=1000)
+    carbs_g: float = Field(ge=0, le=1000)
+    fat_g: float = Field(ge=0, le=1000)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    source: MealSource = MealSource.manual
+class MealOut(MealIn, ORM): id: int; user_id: int
+class MealEstimate(MealIn): pass
+class NutritionAnalysisOut(BaseModel): meals: list[MealEstimate]; note: str = "Estimación orientativa; revisa antes de guardar."

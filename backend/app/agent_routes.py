@@ -1,6 +1,6 @@
 import json
 from calendar import monthrange
-from datetime import date
+from datetime import date, datetime
 
 import httpx
 from fastapi import APIRouter, Depends
@@ -10,7 +10,8 @@ from sqlalchemy.orm import Session
 
 from app.core.security import current_user
 from app.db.session import get_db
-from app.models.models import AgentAction, Category, CategoryBudget, Household, Transaction, TransactionType, User, WeightEntry, WeightGoal
+from app.models.models import AgentAction, Category, CategoryBudget, Household, Meal, MealSource, MealType, Transaction, TransactionType, User, WeightEntry, WeightGoal
+from app.services.nutrition import kcal_target, macro_targets
 from app.schemas import AgentActionOut, AgentChatIn, AgentChatOut
 from app.services.llm import GeminiProvider, LLMProvider, LLMQuotaExceeded, LLMUnavailable, ToolCall
 from app.services.weather import WeatherUnavailable, fetch_forecast
@@ -27,6 +28,8 @@ TOOLS = [
         {"name": "get_budget_status", "description": "Consulta presupuesto de una categoría o todas.", "parameters": {"type": "object", "properties": {"category": {"type": "string"}, "year": {"type": "integer"}, "month": {"type": "integer"}}}},
         {"name": "get_weight_status", "description": "Consulta peso, objetivo y tendencia.", "parameters": {"type": "object", "properties": {}}},
         {"name": "get_today_weather", "description": "Consulta el tiempo de hoy del hogar.", "parameters": {"type": "object", "properties": {}}},
+        {"name": "add_meal", "description": "Registra una comida solo después de que el usuario confirme explícitamente la estimación.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "carbs_g": {"type": "number"}, "fat_g": {"type": "number"}, "meal_type": {"type": "string"}, "eaten_at": {"type": "string"}}, "required": ["name", "kcal", "protein_g", "carbs_g", "fat_g", "meal_type", "eaten_at"]}},
+        {"name": "get_nutrition_status", "description": "Consulta las kcal y macros de hoy frente al objetivo.", "parameters": {"type": "object", "properties": {}}},
     ]}
 ]
 
@@ -42,6 +45,11 @@ class WeightInput(BaseModel):
     weight_kg: float = Field(gt=20, lt=500)
     date: date
     notes: str | None = Field(default=None, max_length=1000)
+
+class MealInput(BaseModel):
+    name: str = Field(min_length=1, max_length=160); kcal: float = Field(ge=0, le=10000)
+    protein_g: float = Field(ge=0, le=1000); carbs_g: float = Field(ge=0, le=1000); fat_g: float = Field(ge=0, le=1000)
+    meal_type: MealType; eaten_at: datetime
 
 
 def provider() -> LLMProvider:
@@ -112,6 +120,16 @@ def execute(call: ToolCall, user: User, db: Session) -> str:
             return f"{weather.location}: {weather.temperature:.0f} °C. {weather.summary}"
         except (WeatherUnavailable, httpx.HTTPError, KeyError, TypeError, ValueError):
             return "No puedo consultar el tiempo ahora mismo."
+    if call.name == "add_meal":
+        data = MealInput.model_validate(call.arguments)
+        db.add(Meal(user_id=user.id, source=MealSource.text, confidence=None, **data.model_dump())); db.commit()
+        return f"Registrado: {data.name}, {data.kcal:.0f} kcal."
+    if call.name == "get_nutrition_status":
+        today = date.today(); start = datetime.combine(today, datetime.min.time()); end = datetime.combine(today, datetime.max.time())
+        rows = db.query(func.coalesce(func.sum(Meal.kcal), 0), func.coalesce(func.sum(Meal.protein_g), 0), func.coalesce(func.sum(Meal.carbs_g), 0), func.coalesce(func.sum(Meal.fat_g), 0)).filter(Meal.user_id == user.id, Meal.eaten_at.between(start, end)).one()
+        target = kcal_target(user, db); macros = macro_targets(user, db, target)
+        goal = f" de {target:.0f}" if target else ""
+        return f"Hoy: {float(rows[0]):.0f}{goal} kcal; proteínas {float(rows[1]):.0f}/{macros['protein_g']:.0f} g, carbohidratos {float(rows[2]):.0f}/{macros['carbs_g']:.0f} g, grasas {float(rows[3]):.0f}/{macros['fat_g']:.0f} g."
     raise ValueError("Herramienta no permitida")
 
 
@@ -120,7 +138,7 @@ def chat(data: AgentChatIn, user: User = Depends(current_user), db: Session = De
     categories = [f"{item.name} ({item.kind.value})" for item in db.query(Category).filter_by(household_id=user.household_id)]
     system = (f"Eres Holos, asistente doméstico. Hoy es {date.today():%d/%m/%Y}. Responde en español, breve y directo. "
               f"Categorías del hogar: {', '.join(categories) or 'ninguna'}. Antes de crear un dato exige importe/peso, fecha y categoría inequívoca; si falta algo, pregunta y no llames herramientas. "
-              "Solo usa las herramientas disponibles y no inventes resultados.")
+              "Para add_meal, presenta siempre la estimación y pide una confirmación explícita antes de llamar la herramienta. Solo usa las herramientas disponibles y no inventes resultados.")
     messages = [{"role": message.role, "content": message.content} for message in data.history[-12:]] + [{"role": "user", "content": data.message}]
     try:
         reply = llm.complete(system=system, messages=messages, tools=TOOLS)

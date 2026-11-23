@@ -11,7 +11,8 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Fase 1.6 hecha: rediseño launcher oscuro y modo pantalla fija.
 - Fase 1.7 hecha: gestión de usuarios, pantalla sin token y tiempo.
 - Fase 2 hecha: chat con IA y voz (Gemini, herramientas tipadas y auditadas).
-- Siguientes: nutrición, Home Assistant, Google Calendar,
+- Fase 3 hecha: nutrición (foto, texto, objetivos, registro y resúmenes).
+- Siguientes: Home Assistant, Google Calendar,
   Telegram (opcional).
 - No implementes módulos de fases futuras sin que lo pida.
 
@@ -119,10 +120,15 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Redimensiona a ~1024 px antes de enviarla a la API.
 - Prevé una copia de seguridad diaria de la base de datos.
 
-## Datos de nutrición
+## Nutrición
+- Estimaciones orientativas de kcal y macros; el usuario puede editarlas.
 - Tabla `meals`: user_id, eaten_at, meal_type, name, description, kcal,
   protein_g, carbs_g, fat_g, confidence, source.
-- Son estimaciones orientativas; no se exige precisión.
+- Las fotos no se guardan: se procesan en memoria, se reducen a ~1024 px
+  y no se escriben en logs. Se descartan tras extraer los datos con Gemini.
+- Objetivo de kcal con Mifflin-St Jeor y límite de déficit agresivo.
+- Datos privados por `user_id`.
+- Herramientas del agente: add_meal, get_nutrition_status.
 
 ## Salud
 - Peso manual por ahora; `source` preparado para futuras fuentes.

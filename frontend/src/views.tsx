@@ -54,7 +54,8 @@ function useLoad(token: string, path: string) {
 export function Dashboard({ token }: { token: string }) {
   const health = useLoad(token, "/health/summary"),
     series = useLoad(token, "/finance/summary/monthly-series?months=6"),
-    recent = useLoad(token, "/finance/transactions?limit=5");
+    recent = useLoad(token, "/finance/transactions?limit=5"),
+    nutrition = useLoad(token, "/nutrition/summary");
   return (
     <>
       <h2>Resumen</h2>
@@ -75,6 +76,11 @@ export function Dashboard({ token }: { token: string }) {
             <label>Objetivo diario</label>
             <b>{health.data?.target_kcal ?? "—"} kcal</b>
             <small>Estimación basada en tu perfil y objetivo.</small>
+          </article>
+          <article>
+            <label>Nutrición de hoy</label>
+            <b>{Math.round(nutrition.data?.totals?.kcal ?? 0)} kcal</b>
+            <small>{nutrition.data?.target_kcal ? `Objetivo: ${nutrition.data.target_kcal} kcal` : "Completa tu perfil de salud para calcular el objetivo."}</small>
           </article>
         </div>
         <div className="chart-grid">

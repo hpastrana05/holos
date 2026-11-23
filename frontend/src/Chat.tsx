@@ -3,9 +3,9 @@ import { api } from "./shared";
 
 type Action = { tool: string; result: string };
 type Message = { id: number; role: "user" | "assistant"; content: string; createdAt: Date; actions?: Action[] };
-type Module = "health" | "finance";
+type Module = "health" | "finance" | "nutrition";
 type ChatState = ReturnType<typeof useChat>;
-const meta: Record<string, { title: string; icon: string; module?: Module }> = { add_expense: { title: "Gasto añadido", icon: "↘", module: "finance" }, add_income: { title: "Ingreso añadido", icon: "↗", module: "finance" }, add_weight: { title: "Peso añadido", icon: "◒", module: "health" }, get_finance_summary: { title: "Resumen financiero", icon: "€", module: "finance" }, get_budget_status: { title: "Presupuesto", icon: "◔", module: "finance" }, get_weight_status: { title: "Estado de peso", icon: "◒", module: "health" }, get_today_weather: { title: "Tiempo de hoy", icon: "☀" } };
+const meta: Record<string, { title: string; icon: string; module?: Module }> = { add_expense: { title: "Gasto añadido", icon: "↘", module: "finance" }, add_income: { title: "Ingreso añadido", icon: "↗", module: "finance" }, add_weight: { title: "Peso añadido", icon: "◒", module: "health" }, add_meal: { title: "Comida añadida", icon: "◉", module: "nutrition" }, get_finance_summary: { title: "Resumen financiero", icon: "€", module: "finance" }, get_budget_status: { title: "Presupuesto", icon: "◔", module: "finance" }, get_weight_status: { title: "Estado de peso", icon: "◒", module: "health" }, get_nutrition_status: { title: "Nutrición de hoy", icon: "◉", module: "nutrition" }, get_today_weather: { title: "Tiempo de hoy", icon: "☀" } };
 const suggestions = ["Añadir gasto", "Registrar peso", "Resumen del mes", "Tiempo de hoy"];
 const supportsVoice = () => typeof window !== "undefined" && ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
 const time = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" });

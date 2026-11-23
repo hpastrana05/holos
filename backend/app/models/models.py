@@ -9,6 +9,8 @@ from app.db.base import Base
 class Role(str, enum.Enum): admin = "admin"; member = "member"
 class Visibility(str, enum.Enum): personal = "personal"; shared = "shared"
 class TransactionType(str, enum.Enum): income = "income"; expense = "expense"
+class MealType(str, enum.Enum): breakfast = "breakfast"; lunch = "lunch"; dinner = "dinner"; snack = "snack"
+class MealSource(str, enum.Enum): photo = "photo"; text = "text"; manual = "manual"
 
 class Household(Base):
     __tablename__ = "households"
@@ -100,3 +102,26 @@ class AgentAction(Base):
     arguments: Mapped[str] = mapped_column(Text)
     result: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+class NutritionGoal(Base):
+    __tablename__ = "nutrition_goals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    protein_g: Mapped[float] = mapped_column(Float, default=100)
+    carbs_g: Mapped[float] = mapped_column(Float, default=225)
+    fat_g: Mapped[float] = mapped_column(Float, default=67)
+
+class Meal(Base):
+    __tablename__ = "meals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    eaten_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    meal_type: Mapped[MealType] = mapped_column(Enum(MealType))
+    name: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    kcal: Mapped[float] = mapped_column(Float)
+    protein_g: Mapped[float] = mapped_column(Float, default=0)
+    carbs_g: Mapped[float] = mapped_column(Float, default=0)
+    fat_g: Mapped[float] = mapped_column(Float, default=0)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[MealSource] = mapped_column(Enum(MealSource), default=MealSource.manual)
