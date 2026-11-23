@@ -1,6 +1,9 @@
 from datetime import date
+
 from pydantic import BaseModel, ConfigDict, Field
-from app.models.models import Role, TransactionType, Visibility
+
+from app.models.models import TransactionType, Visibility
+
 
 class ORM(BaseModel): model_config = ConfigDict(from_attributes=True)
 class LoginIn(BaseModel): email: str; password: str
@@ -17,3 +20,17 @@ class CategoryBudgetIn(BaseModel): category_id: int; year: int = Field(ge=2000, 
 class CategoryBudgetOut(CategoryBudgetIn, ORM): id: int; household_id: int
 class TransactionIn(BaseModel): kind: TransactionType; amount: float = Field(gt=0); category_id: int | None = None; date: date; note: str | None = None; visibility: Visibility = Visibility.personal
 class TransactionOut(TransactionIn, ORM): id: int; user_id: int; household_id: int
+
+
+class ScreenTransaction(ORM):
+    id: int
+    date: date
+    kind: TransactionType
+    amount: float
+
+
+class ScreenSummary(BaseModel):
+    current_weight_kg: float | None
+    target_kcal: int | None
+    monthly_balance: float
+    recent_transactions: list[ScreenTransaction]

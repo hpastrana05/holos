@@ -8,7 +8,8 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 ## Estado del proyecto
 - Fase 1 hecha: base, login JWT, salud y finanzas (CRUD).
 - Fase 1.5 hecha: gráficos, listados, edición, presupuestos y responsive.
-- Siguientes: chat + voz, nutrición, Google Calendar, Home Assistant,
+- Fase 1.6 en curso: rediseño launcher oscuro y modo pantalla fija.
+- Siguientes: chat + voz, nutrición, Home Assistant, Google Calendar,
   Telegram (opcional).
 - No implementes módulos de fases futuras sin que lo pida.
 
@@ -19,7 +20,7 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Finanzas: ingresos y gastos, vista general y vista por categorías,
   presupuesto por categoría y categorías por defecto en el seed.
 - Calendario: Google Calendar.
-- Casa: Home Assistant (API REST).
+- Casa: Home Assistant (API REST), con consumo y control de dispositivos.
 - Chat: texto y voz con Gemini y herramientas.
 
 ## Stack
@@ -29,12 +30,32 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Voz: Web Speech API del navegador (Chrome Android). Sin Whisper local.
 - Despliegue: Docker Compose, imágenes arm64.
 
-## Interfaz
+## Interfaz y estilo
+- Estilo launcher de apps: tema oscuro por defecto, tarjetas redondeadas
+  con efecto glass sutil y un color de acento por módulo.
+- Tokens de diseño (colores, radios, sombras) centralizados en Tailwind.
+- Inicio "Tu Holos": saludo según la hora, fecha en español y cuadrícula
+  de módulos con icono y color. Los módulos no implementados aparecen
+  deshabilitados ("Próximamente").
+- Navegación: barra inferior con iconos en móvil/tablet; barra lateral o
+  superior en escritorio.
 - Responsive: usable en móvil (diario), tablet y escritorio.
-- Dashboard pensado para pantalla fija en un móvil Android antiguo.
 - Textos en español; fechas dd/mm/aaaa; moneda EUR (es-ES).
 - Estados vacíos, de carga y de error en cada pantalla.
 - Gráficos con Recharts; editar y borrar en cada listado.
+- Rendimiento ligero: debe funcionar bien en un móvil Android antiguo.
+
+## Modo pantalla fija (`/pantalla`)
+- Pensado para un móvil/tablet Android fijo en casa. Sin scroll.
+- Acceso con token de solo lectura definido en `.env`; sin login interactivo.
+- Reloj grande, resumen de peso y kcal, balance del mes y últimos movimientos.
+- Se actualiza solo cada 60 s.
+- Pantalla completa y sin apagado (Wake Lock API).
+- Preparada para añadir tarjetas de Casa (consumo, dispositivos, escenas).
+
+## PWA
+- Manifest con display standalone/fullscreen e iconos instalables en Android.
+- Funciona en el móvil diario (con chat) y en el móvil fijo (pantalla).
 
 ## Reglas generales
 - Nunca subas secretos; usa `.env` y `.env.example`.
@@ -50,6 +71,7 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Commits pequeños con mensajes claros.
 - Ejecuta tests y lint antes de dar una tarea por terminada.
 - Documenta en el README cualquier variable de entorno nueva.
+- Actualiza "Estado del proyecto" al cerrar cada fase.
 
 ## Multiusuario (preparado desde la v1)
 - Modelos `User` y `Household`. Un usuario pertenece a un hogar.
@@ -59,12 +81,20 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Transacciones con `visibility`: personal o shared.
 - Autenticación con login + JWT. Toda consulta filtra por el usuario actual.
 - Integraciones (Google Calendar) con credenciales por usuario.
+- El token de `/pantalla` es de solo lectura y no da acceso a datos privados
+  de otros usuarios.
 - Incluye tests de aislamiento entre usuarios.
 
 ## Canales del agente
 - Un único servicio de agente (`/agent/chat`) con herramientas tipadas.
 - Canales: PWA (texto y voz) y, opcionalmente, bot de Telegram.
 - Telegram: long polling, `telegram_id` por usuario y solo usuarios autorizados.
+
+## Casa (Home Assistant)
+- Cliente REST con token de larga duración en `.env`.
+- Control de dispositivos solo mediante lista blanca de entidades.
+- Muestra consumo por enchufe, estado y accesos rápidos por estancia.
+- Las acciones del agente sobre dispositivos se registran.
 
 ## Almacenamiento (SD)
 - SQLite en modo WAL; evita escrituras innecesarias.

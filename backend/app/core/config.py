@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     access_token_minutes: int = 1440
     admin_email: str = "admin@example.local"
     admin_password: str = "change-me-now"
+    screen_token: str = ""
+    screen_user_email: str = ""
     household_name: str = "Mi hogar"
 
 

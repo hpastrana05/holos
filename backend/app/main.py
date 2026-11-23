@@ -1,13 +1,44 @@
 from calendar import monthrange
-from datetime import date
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from datetime import date, datetime
+from secrets import compare_digest
+from typing import Annotated
+from zoneinfo import ZoneInfo
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
+
+from app.core.config import settings
 from app.core.security import create_token, current_user, verify_password
 from app.db.session import get_db
-from app.models.models import Category, CategoryBudget, HealthProfile, Transaction, TransactionType, User, WeightEntry, WeightGoal
-from app.schemas import (CategoryBudgetIn, CategoryBudgetOut, CategoryIn, CategoryOut, HealthProfileIn, HealthProfileOut, LoginIn, Token, TransactionIn, TransactionOut, WeightEntryIn, WeightEntryOut, WeightGoalIn, WeightGoalOut)
+from app.models.models import (
+    Category,
+    CategoryBudget,
+    HealthProfile,
+    Transaction,
+    TransactionType,
+    User,
+    WeightEntry,
+    WeightGoal,
+)
+from app.schemas import (
+    CategoryBudgetIn,
+    CategoryBudgetOut,
+    CategoryIn,
+    CategoryOut,
+    HealthProfileIn,
+    HealthProfileOut,
+    LoginIn,
+    ScreenSummary,
+    Token,
+    TransactionIn,
+    TransactionOut,
+    WeightEntryIn,
+    WeightEntryOut,
+    WeightGoalIn,
+    WeightGoalOut,
+)
 from app.services.health import estimate_arrival, target_kcal
 
 app = FastAPI(title="Holos API", version="0.2.0")
@@ -26,11 +57,55 @@ def period(year, month): return date(year, month, 1), date(year, month, monthran
 def health_data(user, db):
     entries = db.query(WeightEntry).filter_by(user_id=user.id).order_by(WeightEntry.date).all(); profile = db.query(HealthProfile).filter_by(user_id=user.id).first(); goal = db.query(WeightGoal).filter_by(user_id=user.id, active=True).first()
     current = entries[-1].weight_kg if entries else None
-    kcal = target_kcal(profile.height_cm, profile.birth_date, profile.sex, profile.activity_level, current, goal.target_weight_kg if goal else None) if profile and current else None
+    kcal = daily_kcal(profile, current, goal)
     remaining = max(0, abs(goal.target_weight_kg - current)) if goal and current is not None else None
     initial = goal.start_weight_kg if goal else (entries[0].weight_kg if entries else None)
     progress = (abs(initial - current) / abs(initial - goal.target_weight_kg) * 100) if goal and current is not None and initial != goal.target_weight_kg else None
     return {"current_weight_kg": current, "target_weight_kg": goal.target_weight_kg if goal else None, "remaining_kg": remaining, "progress_pct": min(100, round(progress, 1)) if progress is not None else None, "trend_kg": current - entries[0].weight_kg if len(entries) > 1 else None, "estimated_goal_date": estimate_arrival(current, goal.target_weight_kg, goal.weekly_rate_kg).isoformat() if current is not None and goal else None, "target_kcal": kcal, "entries": [{"date": entry.date.isoformat(), "weight_kg": entry.weight_kg} for entry in entries]}
+
+def daily_kcal(profile, weight, goal):
+    if profile and weight:
+        return target_kcal(
+            profile.height_cm, profile.birth_date, profile.sex,
+            profile.activity_level, weight, goal.target_weight_kg if goal else None,
+        )
+    return None
+
+
+@app.get("/screen/summary", response_model=ScreenSummary)
+def screen_summary(
+    response: Response,
+    db: Annotated[Session, Depends(get_db)],
+    x_screen_token: Annotated[str, Header()] = "",
+):
+    if not settings.screen_token or not compare_digest(
+        x_screen_token.encode(), settings.screen_token.encode()
+    ):
+        raise HTTPException(401, "Token de pantalla inválido")
+    user = db.query(User).filter_by(email=settings.screen_user_email, is_active=True).first()
+    if not user:
+        raise HTTPException(401, "Pantalla sin usuario autorizado")
+
+    today = datetime.now(ZoneInfo("Europe/Madrid")).date()
+    latest = (
+        db.query(WeightEntry).filter_by(user_id=user.id)
+        .order_by(WeightEntry.date.desc(), WeightEntry.id.desc()).first()
+    )
+    weight = latest.weight_kg if latest else None
+    profile = db.query(HealthProfile).filter_by(user_id=user.id).first()
+    goal = db.query(WeightGoal).filter_by(user_id=user.id, active=True).first()
+    recent = (
+        db.query(Transaction).filter(visible_transactions(user), Transaction.date <= today)
+        .order_by(Transaction.date.desc(), Transaction.id.desc()).limit(3).all()
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "current_weight_kg": weight,
+        "target_kcal": daily_kcal(profile, weight, goal),
+        "monthly_balance": summary_for_range(*period(today.year, today.month), user, db)["balance"],
+        "recent_transactions": recent,
+    }
+
 
 @app.get("/health")
 def health(): return {"status": "ok"}
