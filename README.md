@@ -4,7 +4,7 @@ Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, pe
 
 ## Estado y funciones
 
-- Launcher oscuro «Tu Holos», con navegación inferior en móvil y tablet y lateral en escritorio.
+- Launcher oscuro «Tu Holos», con una columna en móvil, dos en tablet y cuadrículas más amplias con barra lateral a partir de 1024 px.
 - Pantalla fija de solo lectura y PWA instalable en Android.
 
 - Panel con evolución de peso, línea de objetivo, kcal diarias y últimos movimientos.
@@ -35,7 +35,7 @@ En el `.env` de Compose (o en `backend/.env` para desarrollo) configura:
 
 Si falta algún valor, la pantalla queda desactivada. Tras editar el `.env`, aplica los cambios con `docker compose up -d backend`. Abre `/pantalla` en el dispositivo e introduce el token una vez. Holos lo guarda en ese navegador y lo envía en la cabecera `X-Screen-Token` al endpoint `GET /api/screen/summary`. Usa «Olvidar token» para quitarlo de ese dispositivo o cambia el secreto del servidor para revocarlo. El token solo sirve para consultar ese resumen.
 
-Accede al frontend por HTTPS con `tailscale serve`. En `/pantalla`, toca «Pantalla completa». Holos solicita Wake Lock mientras la página está visible y vuelve a solicitarlo al regresar a ella, si el navegador lo permite. El resumen se consulta cada 60 segundos. El reloj y el mes de referencia usan la zona horaria de Madrid.
+Accede al frontend por HTTPS con `tailscale serve`. En `/pantalla`, toca «Pantalla completa». Holos solicita Wake Lock mientras la página está visible y vuelve a solicitarlo al regresar a ella, si el navegador lo permite. La pantalla se adapta al móvil en vertical y a la tablet en horizontal. El resumen se consulta cada 60 segundos. El reloj y el mes de referencia usan la zona horaria de Madrid.
 
 Para instalar Holos, abre la dirección HTTPS en Chrome para Android y usa «Instalar aplicación» o «Añadir a pantalla de inicio» en el menú. La aplicación abre en modo independiente y el acceso directo «Pantalla fija» abre `/pantalla` desde los launchers compatibles.
 

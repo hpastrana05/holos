@@ -78,49 +78,45 @@ export function Dashboard({ token }: { token: string }) {
           </article>
         </div>
         <div className="chart-grid">
-          <ChartCard title="Evolución del peso">
-            <ResponsiveContainer width="100%" height={240}>
-              <LineChart data={health.data?.entries || []}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tickFormatter={shortDate} />
-                <YAxis domain={["auto", "auto"]} unit=" kg" />
-                <Tooltip labelFormatter={shortDate} />
-                <Line
-                  isAnimationActive={false}
-                  type="monotone"
-                  dataKey="weight_kg"
-                  name="Peso"
-                  stroke="var(--chart-primary)"
-                  strokeWidth={3}
-                  dot
-                />
-                <Line
-                  isAnimationActive={false}
-                  data={health.data?.entries?.map((entry: any) => ({
-                    ...entry,
-                    target: health.data.target_weight_kg,
-                  }))}
-                  dataKey="target"
-                  name="Objetivo"
-                  stroke="var(--chart-secondary)"
-                  strokeDasharray="5 5"
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+          <ChartCard title="Evolución del peso" empty={!health.data?.entries?.length}>
+            <LineChart data={health.data?.entries || []}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" tickFormatter={shortDate} />
+              <YAxis domain={["auto", "auto"]} unit=" kg" />
+              <Tooltip labelFormatter={shortDate} />
+              <Line
+              isAnimationActive={false}
+                type="monotone"
+                dataKey="weight_kg"
+                name="Peso"
+                stroke="var(--chart-primary)"
+                strokeWidth={3}
+                dot
+              />
+              <Line
+              isAnimationActive={false}
+                data={health.data?.entries?.map((entry: any) => ({
+                  ...entry,
+                  target: health.data.target_weight_kg,
+                }))}
+                dataKey="target"
+                name="Objetivo"
+                stroke="var(--chart-secondary)"
+                strokeDasharray="5 5"
+                dot={false}
+              />
+            </LineChart>
           </ChartCard>
-          <ChartCard title="Ingresos y gastos · últimos 6 meses">
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={series.data}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="label" />
-                <YAxis />
-                <Tooltip formatter={(value: number) => euros.format(value)} />
-                <Legend />
-                <Bar isAnimationActive={false} dataKey="income" name="Ingresos" fill="var(--chart-primary)" />
-                <Bar isAnimationActive={false} dataKey="expense" name="Gastos" fill="var(--chart-secondary)" />
-              </BarChart>
-            </ResponsiveContainer>
+          <ChartCard title="Ingresos y gastos · últimos 6 meses" empty={emptySeries(series.data)}>
+            <BarChart data={series.data}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" />
+              <YAxis />
+              <Tooltip formatter={(value: number) => euros.format(value)} />
+              <Legend />
+              <Bar isAnimationActive={false} dataKey="income" name="Ingresos" fill="var(--chart-primary)" />
+              <Bar isAnimationActive={false} dataKey="expense" name="Gastos" fill="var(--chart-secondary)" />
+            </BarChart>
           </ChartCard>
         </div>
         <section>
@@ -131,16 +127,29 @@ export function Dashboard({ token }: { token: string }) {
     </>
   );
 }
+const emptySeries = (rows: { income: number; expense: number }[] | null) =>
+  !rows?.some(({ income, expense }) => income !== 0 || expense !== 0);
+
 const ChartCard = ({
   title,
+  empty,
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  empty: boolean;
+  children: React.ReactElement;
 }) => (
   <section className="chart">
     <h3>{title}</h3>
-    {children}
+    <div className="chart-body">
+      {empty ? (
+        <p className="state chart-empty">Sin datos</p>
+      ) : (
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={280}>
+          {children}
+        </ResponsiveContainer>
+      )}
+    </div>
   </section>
 );
 const TransactionList = ({
@@ -252,38 +261,36 @@ export function Health({ token }: { token: string }) {
             </small>
           </article>
         </div>
-        <ChartCard title="Peso y objetivo">
-          <ResponsiveContainer width="100%" height={270}>
-            <LineChart
-              data={(weights.data || []).map((weight: any) => ({
-                ...weight,
-                target: summary.data.target_weight_kg,
-              }))}
-            >
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" tickFormatter={shortDate} />
-              <YAxis domain={["auto", "auto"]} unit=" kg" />
-              <Tooltip labelFormatter={shortDate} />
-              <Legend />
-              <Line
-                  isAnimationActive={false}
-                dataKey="weight_kg"
-                name="Peso"
-                stroke="var(--chart-primary)"
-                strokeWidth={3}
-              />
-              <Line
-                  isAnimationActive={false}
-                dataKey="target"
-                name="Objetivo"
-                stroke="var(--chart-secondary)"
-                strokeDasharray="5 5"
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <ChartCard title="Peso y objetivo" empty={!weights.data?.length}>
+          <LineChart
+            data={(weights.data || []).map((weight: any) => ({
+              ...weight,
+              target: summary.data?.target_weight_kg,
+            }))}
+          >
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" tickFormatter={shortDate} />
+            <YAxis domain={["auto", "auto"]} unit=" kg" />
+            <Tooltip labelFormatter={shortDate} />
+            <Legend />
+            <Line
+              isAnimationActive={false}
+              dataKey="weight_kg"
+              name="Peso"
+              stroke="var(--chart-primary)"
+              strokeWidth={3}
+            />
+            <Line
+              isAnimationActive={false}
+              dataKey="target"
+              name="Objetivo"
+              stroke="var(--chart-secondary)"
+              strokeDasharray="5 5"
+              dot={false}
+            />
+          </LineChart>
         </ChartCard>
-        <div className="grid">
+        <div className="health-forms">
           <section>
             <h3>{editing ? "Editar peso" : "Registrar peso"}</h3>
             <form onSubmit={saveWeight}>
@@ -326,19 +333,23 @@ export function Health({ token }: { token: string }) {
               )}
             </form>
           </section>
-          <ProfileForm
-            token={token}
-            profile={profile.data}
-            goal={activeGoal}
-            done={() => {
-              setNotice({ text: "Perfil u objetivo actualizado." });
-              reload();
-            }}
-          />
+          {(["profile", "goal"] as const).map((mode) => (
+            <ProfileForm
+              key={mode}
+              mode={mode}
+              token={token}
+              profile={profile.data}
+              goal={activeGoal}
+              done={() => {
+                setNotice({ text: "Perfil u objetivo actualizado." });
+                reload();
+              }}
+            />
+          ))}
         </div>
         <section>
           <h3>Historial de pesos</h3>
-          <State empty={!weights.data.length}>
+          <State empty={!weights.data?.length}>
             <ul className="list">
               {weights.data
                 .slice()
@@ -370,8 +381,7 @@ export function Health({ token }: { token: string }) {
     </>
   );
 }
-function ProfileForm({ token, profile, goal, done }: any) {
-  const [mode, setMode] = useState<"profile" | "goal">("profile");
+function ProfileForm({ mode, token, profile, goal, done }: any) {
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -408,20 +418,7 @@ function ProfileForm({ token, profile, goal, done }: any) {
   };
   return (
     <section>
-      <div className="tabs">
-        <button
-          className={mode === "profile" ? "active" : ""}
-          onClick={() => setMode("profile")}
-        >
-          Perfil
-        </button>
-        <button
-          className={mode === "goal" ? "active" : ""}
-          onClick={() => setMode("goal")}
-        >
-          Objetivo
-        </button>
-      </div>
+      <h3>{mode === "profile" ? "Perfil" : "Objetivo de peso"}</h3>
       <form onSubmit={submit}>
         {mode === "profile" ? (
           <>
@@ -632,60 +629,57 @@ export function Finance({ token }: { token: string }) {
         loading={!monthly.data || !series.data || !transactions.data}
         error={monthly.error || series.error || transactions.error}
       >
-        {tab === "general" ? (
-          <>
-            <div className="cards">
-              <article>
-                <label>Ingresos</label>
-                <b>{euros.format(monthly.data.income)}</b>
-              </article>
-              <article>
-                <label>Gastos</label>
-                <b>{euros.format(monthly.data.expense)}</b>
-              </article>
-              <article>
-                <label>Balance</label>
-                <b>{euros.format(monthly.data.balance)}</b>
-              </article>
-            </div>
-            <ChartCard title="Ingresos y gastos">
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={series.data}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="label" />
-                  <YAxis />
-                  <Tooltip formatter={(value: number) => euros.format(value)} />
-                  <Legend />
-                  <Bar isAnimationActive={false} dataKey="income" name="Ingresos" fill="var(--chart-primary)" />
-                  <Bar isAnimationActive={false} dataKey="expense" name="Gastos" fill="var(--chart-secondary)" />
-                </BarChart>
-              </ResponsiveContainer>
+        {tab === "general" && (
+          <div className="cards">
+            <article>
+              <label>Ingresos</label>
+              <b>{euros.format(monthly.data.income)}</b>
+            </article>
+            <article>
+              <label>Gastos</label>
+              <b>{euros.format(monthly.data.expense)}</b>
+            </article>
+            <article>
+              <label>Balance</label>
+              <b>{euros.format(monthly.data.balance)}</b>
+            </article>
+          </div>
+        )}
+        <div className="finance-grid">
+          {tab === "general" ? (
+            <ChartCard title="Ingresos y gastos" empty={emptySeries(series.data)}>
+              <BarChart data={series.data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" />
+                <YAxis />
+                <Tooltip formatter={(value: number) => euros.format(value)} />
+                <Legend />
+                <Bar isAnimationActive={false} dataKey="income" name="Ingresos" fill="var(--chart-primary)" />
+                <Bar isAnimationActive={false} dataKey="expense" name="Gastos" fill="var(--chart-secondary)" />
+              </BarChart>
             </ChartCard>
-          </>
-        ) : (
-          <>
-            <div className="chart-grid">
-              <ChartCard title="Gastos por categoría">
-                <ResponsiveContainer width="100%" height={260}>
-                  <PieChart>
-                    <Pie
-                  isAnimationActive={false}
-                      data={expenses}
-                      dataKey="amount"
-                      nameKey="category"
-                      fill="var(--chart-primary)"
-                      label={({ category, percent }) =>
-                        `${category} ${(percent * 100).toFixed(0)}%`
-                      }
-                    />
-                    <Tooltip
-                      formatter={(value: number) => euros.format(value)}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+          ) : (
+            <>
+              <ChartCard title="Gastos por categoría" empty={!expenses.length}>
+                <PieChart>
+                  <Pie
+                    isAnimationActive={false}
+                    data={expenses}
+                    dataKey="amount"
+                    nameKey="category"
+                    fill="var(--chart-primary)"
+                    label={({ category, percent }) =>
+                      `${category} ${(percent * 100).toFixed(0)}%`
+                    }
+                  />
+                  <Tooltip
+                    formatter={(value: number) => euros.format(value)}
+                  />
+                </PieChart>
               </ChartCard>
               <section>
                 <h3>Top categorías</h3>
+                {!expenses.length && <p className="state">Sin datos</p>}
                 <ul className="list">
                   {expenses
                     .sort((a: any, b: any) => b.amount - a.amount)
@@ -698,71 +692,71 @@ export function Finance({ token }: { token: string }) {
                     ))}
                 </ul>
               </section>
-            </div>
-            <BudgetPanel
-              token={token}
-              year={year}
-              month={mon}
-              categories={categories.data || []}
-              budgets={budgets.data || []}
-              done={reload}
-            />
-          </>
-        )}
-        <section>
-          <h3>{editing ? "Editar movimiento" : "Nuevo movimiento"}</h3>
-          <form className="transaction-form" onSubmit={saveTransaction}>
-            <Field label="Tipo">
-              <select name="kind" defaultValue={editing?.kind || "expense"}>
-                <option value="expense">Gasto</option>
-                <option value="income">Ingreso</option>
-              </select>
-            </Field>
-            <Field label="Importe (€)">
-              <input
-                name="amount"
-                type="number"
-                min="0.01"
-                step="0.01"
-                defaultValue={editing?.amount}
-                required
+              <BudgetPanel
+                token={token}
+                year={year}
+                month={mon}
+                categories={categories.data || []}
+                budgets={budgets.data || []}
+                done={reload}
               />
-            </Field>
-            <Field label="Categoría">
-              <select name="category" defaultValue={editing?.category_id || ""}>
-                <option value="">Sin categoría</option>
-                {(categories.data || []).map((c: any) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Fecha">
-              <input
-                name="date"
-                type="date"
-                defaultValue={editing?.date || today()}
-                required
-              />
-            </Field>
-            <Field label="Nota">
-              <input name="note" defaultValue={editing?.note || ""} />
-            </Field>
-            <Field label="Visibilidad">
-              <select
-                name="visibility"
-                defaultValue={editing?.visibility || "personal"}
-              >
-                <option value="personal">Personal</option>
-                <option value="shared">Compartido</option>
-              </select>
-            </Field>
-            <button>
-              {editing ? "Guardar cambios" : "Guardar movimiento"}
-            </button>
-          </form>
-        </section>
+            </>
+          )}
+          <section>
+            <h3>{editing ? "Editar movimiento" : "Nuevo movimiento"}</h3>
+            <form className="transaction-form" onSubmit={saveTransaction}>
+              <Field label="Tipo">
+                <select name="kind" defaultValue={editing?.kind || "expense"}>
+                  <option value="expense">Gasto</option>
+                  <option value="income">Ingreso</option>
+                </select>
+              </Field>
+              <Field label="Importe (€)">
+                <input
+                  name="amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  defaultValue={editing?.amount}
+                  required
+                />
+              </Field>
+              <Field label="Categoría">
+                <select name="category" defaultValue={editing?.category_id || ""}>
+                  <option value="">Sin categoría</option>
+                  {(categories.data || []).map((c: any) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Fecha">
+                <input
+                  name="date"
+                  type="date"
+                  defaultValue={editing?.date || today()}
+                  required
+                />
+              </Field>
+              <Field label="Nota">
+                <input name="note" defaultValue={editing?.note || ""} />
+              </Field>
+              <Field label="Visibilidad">
+                <select
+                  name="visibility"
+                  defaultValue={editing?.visibility || "personal"}
+                >
+                  <option value="personal">Personal</option>
+                  <option value="shared">Compartido</option>
+                </select>
+              </Field>
+              <button>
+                {editing ? "Guardar cambios" : "Guardar movimiento"}
+              </button>
+            </form>
+          </section>
+        </div>
         <section>
           <h3>Movimientos</h3>
           <div className="filters compact">
