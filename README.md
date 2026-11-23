@@ -1,4 +1,4 @@
-# Holos — fase 1.7
+# Holos — fase 2
 
 Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, peso, objetivos, finanzas, autenticación JWT y aislamiento multiusuario.
 
@@ -6,6 +6,7 @@ Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, pe
 
 - Launcher oscuro «Tu Holos», con una columna en móvil, dos en tablet y cuadrículas más amplias con barra lateral a partir de 1024 px.
 - Pantalla fija de solo lectura y PWA instalable en Android.
+- Chat con Gemini por texto y voz, con herramientas limitadas y auditadas.
 
 - Panel con evolución de peso, línea de objetivo, kcal diarias y últimos movimientos.
 - Finanzas con ingresos/gastos de seis meses, filtros, análisis por categoría y presupuestos mensuales.
@@ -16,6 +17,7 @@ Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, pe
 
 1. Instala Docker Engine y el complemento Docker Compose.
 2. Copia `.env.example` a `.env` y asigna valores seguros a `HOLOS_SECRET_KEY` y `HOLOS_ADMIN_PASSWORD`.
+   Para activar el chat, añade `GEMINI_API_KEY` y `GEMINI_MODEL`. Elige un modelo que tenga nivel gratuito en [Google AI Studio](https://aistudio.google.com/); Holos no fija un modelo por defecto.
 3. Arranca el servicio:
 
    ```sh
@@ -80,3 +82,4 @@ Crea y conserva el directorio de backups en un volumen distinto o sincronízalo 
 - Las categorías pertenecen a `household_id`.
 - Las transacciones personales solo las ve su creador; las compartidas las ven los miembros del mismo hogar.
 - La gestión de usuarios y los cambios de ubicación requieren un administrador del hogar.
+- El chat solo puede crear gastos, ingresos y pesos, o consultar datos. Cada uso de herramienta registra usuario, herramienta, argumentos y resultado en `agent_actions`; no se guarda el texto completo de la conversación.

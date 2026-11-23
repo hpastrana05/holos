@@ -35,3 +35,19 @@ class ScreenSummary(BaseModel):
     target_kcal: int | None
     monthly_balance: float
     recent_transactions: list[ScreenTransaction]
+
+class ChatMessage(BaseModel):
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(min_length=1, max_length=4000)
+
+class AgentChatIn(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=12)
+
+class AgentActionOut(BaseModel):
+    tool: str
+    result: str
+
+class AgentChatOut(BaseModel):
+    response: str
+    actions: list[AgentActionOut]

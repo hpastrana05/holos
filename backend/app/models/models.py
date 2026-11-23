@@ -91,3 +91,12 @@ class Transaction(Base):
     date: Mapped[date] = mapped_column(Date, index=True)
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     visibility: Mapped[Visibility] = mapped_column(Enum(Visibility), default=Visibility.personal)
+
+class AgentAction(Base):
+    __tablename__ = "agent_actions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    tool: Mapped[str] = mapped_column(String(80))
+    arguments: Mapped[str] = mapped_column(Text)
+    result: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)

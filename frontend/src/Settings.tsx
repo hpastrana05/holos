@@ -29,9 +29,15 @@ export default function Settings({ token }: { token: string }) {
       <div className="settings-grid">
         {account.role === "admin" && <UserSettings token={token} />}
         <LocationSettings token={token} location={location} editable={account.role === "admin"} />
+        <VoiceSettings />
       </div>
     )}
   </>;
+}
+
+function VoiceSettings() {
+  const [enabled, setEnabled] = useState(() => localStorage.getItem("holos-speak-replies") === "true");
+  return <section><h3>Voz del chat</h3><label className="settings-checkbox"><input type="checkbox" checked={enabled} onChange={event => { const value = event.target.checked; setEnabled(value); localStorage.setItem("holos-speak-replies", String(value)); }} /> Leer las respuestas en voz alta</label><p className="state">La respuesta por voz usa el sintetizador del navegador.</p></section>;
 }
 
 function UserSettings({ token }: { token: string }) {

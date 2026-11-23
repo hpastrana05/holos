@@ -2,6 +2,7 @@ import { lazy, Suspense, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Icon, type IconName } from "./icons";
 import Login from "./Login";
+import { ChatFloating, ChatPanel } from "./Chat";
 import "./style.css";
 
 const Settings = lazy(() => import("./Settings"));
@@ -16,14 +17,14 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   });
 }
 
-type Tab = "dashboard" | "health" | "finance" | "settings";
+type Tab = "dashboard" | "health" | "finance" | "chat" | "settings";
 const modules: { icon: IconName; label: string; tab?: Tab }[] = [
   { icon: "health", label: "Salud", tab: "health" },
   { icon: "finance", label: "Finanzas", tab: "finance" },
   { icon: "nutrition", label: "Nutrición" },
   { icon: "calendar", label: "Calendario" },
   { icon: "house", label: "Casa" },
-  { icon: "chat", label: "Chat" },
+  { icon: "chat", label: "Chat", tab: "chat" },
 ];
 const navigation = [{ icon: "dashboard", label: "Inicio", tab: "dashboard" }, ...modules.filter(({ tab }) => tab)] as
   { icon: IconName; label: string; tab: Tab }[];
@@ -93,9 +94,11 @@ function App() {
           {tab === "dashboard" && <Dashboard token={token} />}
           {tab === "health" && <Health token={token} />}
           {tab === "finance" && <Finance token={token} />}
+          {tab === "chat" && <><h2>Chat</h2><ChatPanel token={token} /></>}
           {tab === "settings" && <Settings token={token} />}
         </Suspense>
       </main>
+      <ChatFloating token={token} />
     </div>
   );
 }

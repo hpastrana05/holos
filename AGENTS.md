@@ -9,8 +9,9 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Fase 1 hecha: base, login JWT, salud y finanzas (CRUD).
 - Fase 1.5 hecha: gráficos, listados, edición, presupuestos y responsive.
 - Fase 1.6 hecha: rediseño launcher oscuro y modo pantalla fija.
-- Fase 1.7 hecha: ajustes de usuarios, selector con PIN opcional y tiempo en pantalla fija.
-- Siguientes: chat + voz, nutrición, Home Assistant, Google Calendar,
+- Fase 1.7 hecha: gestión de usuarios, pantalla sin token y tiempo.
+- Fase 2 hecha: chat con IA y voz (Gemini, herramientas tipadas y auditadas).
+- Siguientes: nutrición, Home Assistant, Google Calendar,
   Telegram (opcional).
 - No implementes módulos de fases futuras sin que lo pida.
 
@@ -22,7 +23,7 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
   presupuesto por categoría y categorías por defecto en el seed.
 - Calendario: Google Calendar.
 - Casa: Home Assistant (API REST), con consumo y control de dispositivos.
-- Chat: texto y voz con Gemini y herramientas.
+- Chat: texto y voz con Gemini y herramientas; chat flotante en todas las pantallas.
 
 ## Stack
 - Backend: Python 3.12, FastAPI, SQLAlchemy, Alembic, Pydantic, SQLite (WAL).
@@ -85,10 +86,24 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - La sesión de `/pantalla` es de solo lectura y se limita al usuario seleccionado.
 - Incluye tests de aislamiento entre usuarios.
 
-## Canales del agente
-- Un único servicio de agente (`/agent/chat`) con herramientas tipadas.
-- Canales: PWA (texto y voz) y, opcionalmente, bot de Telegram.
-- Telegram: long polling, `telegram_id` por usuario y solo usuarios autorizados.
+## Agente (chat y voz)
+- Un único servicio de agente (`POST /agent/chat`) con herramientas tipadas
+  y lista cerrada. Usa function calling de Gemini tras `LLMProvider`.
+- Variables: `GEMINI_API_KEY` y `GEMINI_MODEL` en `.env`.
+- Herramientas actuales: add_expense, add_income, add_weight,
+  get_finance_summary, get_budget_status, get_weight_status,
+  get_today_weather. Las nuevas fases añaden las suyas.
+- El agente actúa siempre en nombre del usuario autenticado.
+- Si falta un dato o hay ambigüedad, pregunta antes de guardar.
+- Confirma siempre lo que ha guardado.
+- Registra cada acción (tool, argumentos, resultado, usuario) en
+  `agent_actions`. No guardes el historial completo del chat en disco.
+- Respeta los límites de la API gratuita: reintentos con espera y
+  mensaje claro si se supera la cuota.
+- Voz en el navegador: Web Speech API (es-ES) para entrada y
+  `speechSynthesis` para respuesta opcional.
+- Canales: PWA (texto y voz) y, opcionalmente, bot de Telegram
+  (long polling, `telegram_id` por usuario, solo usuarios autorizados).
 
 ## Casa (Home Assistant)
 - Cliente REST con token de larga duración en `.env`.

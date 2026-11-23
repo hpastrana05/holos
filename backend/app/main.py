@@ -42,12 +42,14 @@ from app.screen_access import screen_user
 from app.services.health import estimate_arrival, target_kcal
 from app.settings_routes import PublicUser
 from app.settings_routes import router as settings_router
+from app.agent_routes import router as agent_router
 
 app = FastAPI(title="Holos API", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:8080"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(settings_router)
 app.include_router(screen_router)
+app.include_router(agent_router)
 
 def owned(model, item_id, user, db):
     item = db.query(model).filter(model.id == item_id, model.user_id == user.id).first()

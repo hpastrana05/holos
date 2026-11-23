@@ -19,6 +19,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ADMIN_PASSWORD", "HOLOS_ADMIN_PASSWORD"),
     )
     household_name: str = "Mi hogar"
+    gemini_api_key: str | None = None
+    gemini_model: str | None = None
 
 
 settings = Settings()
