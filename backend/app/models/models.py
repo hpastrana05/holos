@@ -1,0 +1,75 @@
+import enum
+from typing import Optional
+from datetime import date, datetime
+from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from app.db.base import Base
+
+
+class Role(str, enum.Enum): admin = "admin"; member = "member"
+class Visibility(str, enum.Enum): personal = "personal"; shared = "shared"
+class TransactionType(str, enum.Enum): income = "income"; expense = "expense"
+
+class Household(Base):
+    __tablename__ = "households"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[Role] = mapped_column(Enum(Role), default=Role.member)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+class HealthProfile(Base):
+    __tablename__ = "health_profiles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    height_cm: Mapped[float] = mapped_column(Float)
+    birth_date: Mapped[date] = mapped_column(Date)
+    sex: Mapped[str] = mapped_column(String(16))
+    activity_level: Mapped[str] = mapped_column(String(32))
+
+class WeightEntry(Base):
+    __tablename__ = "weight_entries"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    weight_kg: Mapped[float] = mapped_column(Float)
+    source: Mapped[str] = mapped_column(String(32), default="manual")
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+class WeightGoal(Base):
+    __tablename__ = "weight_goals"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    start_weight_kg: Mapped[float] = mapped_column(Float)
+    target_weight_kg: Mapped[float] = mapped_column(Float)
+    start_date: Mapped[date] = mapped_column(Date)
+    target_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    weekly_rate_kg: Mapped[float] = mapped_column(Float, default=0.5)
+    mode: Mapped[str] = mapped_column(String(32), default="lose")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+class Category(Base):
+    __tablename__ = "categories"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    kind: Mapped[TransactionType] = mapped_column(Enum(TransactionType))
+
+class Transaction(Base):
+    __tablename__ = "transactions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
+    kind: Mapped[TransactionType] = mapped_column(Enum(TransactionType))
+    amount: Mapped[float] = mapped_column(Numeric(12, 2))
+    category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    date: Mapped[date] = mapped_column(Date, index=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    visibility: Mapped[Visibility] = mapped_column(Enum(Visibility), default=Visibility.personal)

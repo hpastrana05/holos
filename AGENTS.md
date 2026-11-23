@@ -1,0 +1,58 @@
+# Holos
+
+Dashboard personal para un hogar (familia) en una Raspberry Pi 4B (8 GB, SD 64 GB).
+Hoy lo usa un solo usuario, pero está preparado para varios.
+Corre junto a Home Assistant y Tailscale. Acceso solo por Tailscale.
+
+## Módulos
+- Salud: perfil, peso (manual), objetivo de peso, kcal objetivo.
+- Nutrición: comidas por foto/texto/voz con estimación aproximada.
+- Finanzas: ingresos y gastos, vista general y vista por categorías.
+- Calendario: Google Calendar.
+- Casa: Home Assistant (API REST).
+- Chat: texto y voz con Gemini y herramientas.
+
+## Stack
+- Backend: Python 3.12, FastAPI, SQLAlchemy, Alembic, Pydantic, SQLite (WAL).
+- Frontend: React + Vite + Tailwind, PWA, gráficos con Recharts.
+- IA: Gemini API tras una interfaz `LLMProvider` intercambiable.
+- Voz: Web Speech API del navegador (Chrome Android). Sin Whisper local.
+- Despliegue: Docker Compose, imágenes arm64.
+
+## Reglas generales
+- Nunca subas secretos; usa `.env` y `.env.example`.
+- El agente solo ejecuta herramientas de una lista cerrada y tipada.
+- El agente actúa siempre en nombre del usuario que habla.
+- Registra cada acción del agente (tool, argumentos, resultado).
+- Tests con pytest. Cada feature: modelo, endpoint, test y docs breves.
+- Antes de cambiar la arquitectura, propón un plan y espera aprobación.
+- No instales dependencias sin justificarlo.
+
+## Multiusuario (preparado desde la v1)
+- Modelos `User` y `Household`. Un usuario pertenece a un hogar.
+- Roles: admin y member.
+- Datos personales (salud, peso, nutrición): `user_id`, privados por defecto.
+- Datos compartidos (categorías, casa): `household_id`.
+- Transacciones con `visibility`: personal o shared.
+- Autenticación con login + JWT. Toda consulta filtra por el usuario actual.
+- Integraciones (Google Calendar) con credenciales por usuario.
+- Incluye tests de aislamiento entre usuarios.
+
+## Almacenamiento (SD)
+- SQLite en modo WAL; evita escrituras innecesarias.
+- Logs limitados y con rotación.
+- No persistas imágenes: procesa la foto en memoria, extrae los datos
+  con Gemini y descarta el archivo. No loguees imágenes ni su contenido.
+- Redimensiona a ~1024 px antes de enviarla a la API.
+- Prevé una copia de seguridad diaria de la base de datos.
+
+## Datos de nutrición
+- Tabla `meals`: user_id, eaten_at, meal_type, name, description, kcal,
+  protein_g, carbs_g, fat_g, confidence, source.
+- Son estimaciones orientativas; no se exige precisión.
+
+## Salud
+- Peso manual por ahora; `source` preparado para futuras fuentes.
+- Mantén historial de peso y objetivos sin sobrescribir.
+- kcal objetivo con Mifflin-St Jeor + factor de actividad.
+- Limita el déficit a un máximo seguro.
