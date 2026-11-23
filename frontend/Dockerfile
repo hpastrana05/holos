@@ -5,6 +5,7 @@ RUN npm install
 COPY . .
 RUN npm run build
 FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist/ /usr/share/nginx/html/
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN test -f /usr/share/nginx/html/index.html
 EXPOSE 80
