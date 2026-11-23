@@ -10,8 +10,14 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("SECRET_KEY", "HOLOS_SECRET_KEY"),
     )
     access_token_minutes: int = 1440
-    admin_email: str = "admin@example.local"
-    admin_password: str = "change-me-now"
+    admin_email: str = Field(
+        default="admin@example.local",
+        validation_alias=AliasChoices("ADMIN_EMAIL", "HOLOS_ADMIN_EMAIL"),
+    )
+    admin_password: str = Field(
+        default="change-me-now",
+        validation_alias=AliasChoices("ADMIN_PASSWORD", "HOLOS_ADMIN_PASSWORD"),
+    )
     household_name: str = "Mi hogar"
 
 
