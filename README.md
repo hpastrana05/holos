@@ -45,7 +45,7 @@ La vista **Casa** agrupa los elementos autorizados por estancia, muestra estado 
 
 ## Google Calendar
 
-Cada usuario conecta su propia cuenta desde **Ajustes → Google Calendar**. Holos solicita solo permisos para consultar calendarios y leer/crear eventos. El refresh token se cifra antes de guardarse y no se registra en logs. **No cambies `HOLOS_SECRET_KEY` una vez conectes Google:** se usa para cifrar esos tokens; si cambia, Holos desconecta el calendario de forma segura y tendrás que volver a autorizarlo. La agenda usa siempre `Europe/Madrid`; `/pantalla` solo muestra título y hora de los próximos eventos de la persona seleccionada.
+Cada usuario conecta su propia cuenta desde **Ajustes → Google Calendar**. Holos solicita solo permisos para consultar calendarios y leer/crear eventos. Desde ese mismo ajuste puede elegir qué calendarios visibles incluir; los eventos conservan el color de origen. El refresh token se cifra antes de guardarse y no se registra en logs. **No cambies `HOLOS_SECRET_KEY` una vez conectes Google:** se usa para cifrar esos tokens; si cambia, Holos desconecta el calendario de forma segura y tendrás que volver a autorizarlo. La agenda usa siempre `Europe/Madrid`; `/pantalla` solo muestra título y hora de los próximos eventos de la persona seleccionada.
 
 ## Pantalla fija, tiempo y PWA
 

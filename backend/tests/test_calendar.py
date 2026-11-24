@@ -44,3 +44,18 @@ def test_calendar_invalid_encryption_disconnects(db):
     except CalendarDisconnected: pass
     db.refresh(item)
     assert not item.connected and item.refresh_token_encrypted is None
+
+
+def test_calendar_selection_is_per_user(client, db, monkeypatch):
+    item = connect(db)
+    from app import calendar_routes
+    source = [
+        {"id": "primary", "name": "Personal", "color": "#111111", "selected": True},
+        {"id": "work", "name": "Trabajo", "color": "#222222", "selected": True},
+    ]
+    monkeypatch.setattr(calendar_routes, "google_calendars", lambda *_: source)
+    response = client.put("/calendar/calendars", headers=token(client), json={"calendar_ids": ["work"]})
+    assert response.status_code == 200
+    db.refresh(item)
+    assert item.selected_calendar_ids == '["work"]'
+    assert client.put("/calendar/calendars", headers=token(client, "member@test.local"), json={"calendar_ids": ["work"]}).status_code == 409

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import time
 from datetime import datetime
 from threading import Lock
@@ -72,13 +73,29 @@ def request(db: Session, credential: CalendarCredential, method: str, path: str,
     except CalendarDisconnected: raise
     except httpx.HTTPError as error: raise CalendarUnavailable("Google Calendar no está disponible ahora.") from error
 
-def cached_events(db: Session, credential: CalendarCredential, start: datetime, end: datetime, key: str) -> list[dict]:
-    cache_key = (credential.user_id, key); now = time.monotonic()
+def calendars(db: Session, credential: CalendarCredential) -> list[dict]:
+    cache_key = (credential.user_id, "calendar-list"); now = time.monotonic()
+    with _lock:
+        cached = _cache.get(cache_key)
+        items = cached[1] if cached and now - cached[0] < 60 else None
+    if items is None:
+        items = request(db, credential, "GET", "/users/me/calendarList").get("items", [])
+        with _lock: _cache[cache_key] = (now, items)
+    selected = None if credential.selected_calendar_ids is None else set(json.loads(credential.selected_calendar_ids))
+    return [{"id": item["id"], "name": item.get("summaryOverride") or item.get("summary") or "Sin nombre", "color": item.get("backgroundColor") or "#5f7cff", "selected": selected is None or item["id"] in selected} for item in items if item.get("id")]
+
+def cached_events(db: Session, credential: CalendarCredential, start: datetime, end: datetime, key: str, calendar_items: list[dict] | None = None) -> list[dict]:
+    calendar_items = calendar_items if calendar_items is not None else calendars(db, credential)
+    selected = [item for item in calendar_items if item["selected"]]
+    cache_key = (credential.user_id, f"{key}:{','.join(sorted(item['id'] for item in selected))}"); now = time.monotonic()
     with _lock:
         item = _cache.get(cache_key)
         if item and now - item[0] < 30: return item[1]
-    payload = request(db, credential, "GET", "/calendars/primary/events", params={"timeMin": start.astimezone(MADRID).isoformat(), "timeMax": end.astimezone(MADRID).isoformat(), "singleEvents": "true", "orderBy": "startTime", "timeZone": "Europe/Madrid"})
-    rows = [{"id": event.get("id"), "title": event.get("summary") or "Sin título", "start": event.get("start", {}).get("dateTime") or event.get("start", {}).get("date"), "end": event.get("end", {}).get("dateTime") or event.get("end", {}).get("date"), "all_day": "date" in event.get("start", {})} for event in payload.get("items", [])]
+    rows = []
+    for calendar in selected:
+        payload = request(db, credential, "GET", f"/calendars/{httpx.URL(calendar['id']).raw_path.decode()}/events", params={"timeMin": start.astimezone(MADRID).isoformat(), "timeMax": end.astimezone(MADRID).isoformat(), "singleEvents": "true", "orderBy": "startTime", "timeZone": "Europe/Madrid"})
+        rows.extend({"id": f"{calendar['id']}:{event.get('id')}", "calendar_id": calendar["id"], "calendar_name": calendar["name"], "color": calendar["color"], "title": event.get("summary") or "Sin título", "start": event.get("start", {}).get("dateTime") or event.get("start", {}).get("date"), "end": event.get("end", {}).get("dateTime") or event.get("end", {}).get("date"), "all_day": "date" in event.get("start", {})} for event in payload.get("items", []))
+    rows.sort(key=lambda event: event["start"])
     with _lock: _cache[cache_key] = (now, rows)
     return rows
 

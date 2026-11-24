@@ -144,4 +144,5 @@ class CalendarCredential(Base):
     refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     connected: Mapped[bool] = mapped_column(Boolean, default=False)
     calendar_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    selected_calendar_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

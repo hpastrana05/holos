@@ -11,8 +11,8 @@ from app.core.config import settings
 from app.core.security import current_user
 from app.db.session import get_db
 from app.models.models import CalendarCredential, User
-from app.schemas import CalendarEventIn, CalendarStatusOut
-from app.services.calendar import CalendarDisconnected, CalendarUnavailable, cached_events, clear_events, disconnect, exchange_code, encrypt_refresh, oauth_url, request
+from app.schemas import CalendarEventIn, CalendarSelectionIn, CalendarStatusOut
+from app.services.calendar import CalendarDisconnected, CalendarUnavailable, cached_events, calendars as google_calendars, clear_events, disconnect, exchange_code, encrypt_refresh, oauth_url, request
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 Db = Annotated[Session, Depends(get_db)]
@@ -68,11 +68,25 @@ def remove_connection(user: Account, db: Db):
 @router.get("/calendars")
 def calendars(user: Account, db: Db):
     try:
-        return request(db, connected(user, db), "GET", "/users/me/calendarList").get("items", [])
+        return google_calendars(db, connected(user, db))
     except (CalendarDisconnected, CalendarUnavailable) as error: translate(error)
 
+@router.put("/calendars")
+def select_calendars(data: CalendarSelectionIn, user: Account, db: Db):
+    item = connected(user, db)
+    try:
+        available = {calendar["id"] for calendar in google_calendars(db, item)}
+    except (CalendarDisconnected, CalendarUnavailable) as error: translate(error)
+    if not set(data.calendar_ids).issubset(available): raise HTTPException(422, "Hay calendarios no disponibles.")
+    import json
+    item.selected_calendar_ids = json.dumps(data.calendar_ids)
+    db.commit(); clear_events(user.id)
+    return google_calendars(db, item)
+
 def range_events(user: User, db: Session, start: datetime, end: datetime, key: str):
-    try: return cached_events(db, connected(user, db), start, end, key)
+    try:
+        item = connected(user, db)
+        return cached_events(db, item, start, end, key, google_calendars(db, item))
     except (CalendarDisconnected, CalendarUnavailable) as error: translate(error)
 
 def screen_events(user: User, db: Session):
@@ -80,7 +94,7 @@ def screen_events(user: User, db: Session):
     if not item or not item.connected: return {"connected": False, "events": []}
     try:
         now = datetime.now(MADRID)
-        return {"connected": True, "events": cached_events(db, item, now, now + timedelta(days=7), "screen")[:3]}
+        return {"connected": True, "events": cached_events(db, item, now, now + timedelta(days=7), "screen", google_calendars(db, item))[:3]}
     except (CalendarDisconnected, CalendarUnavailable) as error:
         return {"connected": False, "events": [], "error": str(error)}
 
