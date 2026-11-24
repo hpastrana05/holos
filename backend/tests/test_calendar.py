@@ -47,6 +47,22 @@ def test_calendar_invalid_encryption_disconnects(db):
     assert not item.connected and item.refresh_token_encrypted is None
 
 
+def test_calendar_403_does_not_disconnect_session(db, monkeypatch):
+    from app.services import calendar
+    item = connect(db)
+    monkeypatch.setattr(calendar, "access_token", lambda *_: "access")
+    class Response:
+        status_code = 403
+        def raise_for_status(self):
+            import httpx
+            raise httpx.HTTPStatusError("forbidden", request=None, response=None)
+    monkeypatch.setattr(calendar.httpx, "request", lambda *_, **__: Response())
+    try: calendar.request(db, item, "GET", "/calendars/special/events")
+    except calendar.CalendarUnavailable: pass
+    db.refresh(item)
+    assert item.connected and item.refresh_token_encrypted == "encrypted"
+
+
 def test_calendar_selection_is_per_user(client, db, monkeypatch):
     item = connect(db)
     from app import calendar_routes

@@ -68,7 +68,11 @@ def access_token(db: Session, credential: CalendarCredential) -> str:
 def request(db: Session, credential: CalendarCredential, method: str, path: str, **kwargs) -> Any:
     try:
         response = httpx.request(method, "https://www.googleapis.com/calendar/v3" + path, headers={"Authorization": "Bearer " + access_token(db, credential)}, timeout=10, **kwargs)
-        if response.status_code in {401, 403}: disconnect(db, credential); raise CalendarDisconnected("La autorización de Google ha caducado o fue revocada.")
+        # A 403 can mean a special/shared calendar is unavailable; it does not
+        # necessarily mean the user's refresh token was revoked. Only a 401
+        # invalidates the saved session. Invalid refresh tokens are handled in
+        # access_token() as invalid_grant/400.
+        if response.status_code == 401: disconnect(db, credential); raise CalendarDisconnected("La autorización de Google ha caducado o fue revocada.")
         response.raise_for_status(); return response.json()
     except CalendarDisconnected: raise
     except httpx.HTTPError as error: raise CalendarUnavailable("Google Calendar no está disponible ahora.") from error

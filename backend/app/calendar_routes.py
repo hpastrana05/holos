@@ -53,9 +53,10 @@ def callback(code: str | None = None, state: str | None = None, error: str | Non
         if not user: raise jwt.InvalidTokenError()
         data = exchange_code(code)
         refresh = data.get("refresh_token")
-        if not refresh: raise CalendarUnavailable("Google no entregó un token de acceso sin conexión.")
         item = credential(user, db) or CalendarCredential(user_id=user.id)
-        item.refresh_token_encrypted = encrypt_refresh(refresh); item.connected = True
+        if refresh: item.refresh_token_encrypted = encrypt_refresh(refresh)
+        if not item.refresh_token_encrypted: raise CalendarUnavailable("Google no entregó un token de acceso sin conexión.")
+        item.connected = True
         db.add(item); db.commit(); clear_events(user.id)
     except (jwt.InvalidTokenError, ValueError, CalendarUnavailable):
         return RedirectResponse("/?calendar=error")
