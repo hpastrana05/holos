@@ -10,10 +10,10 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Fase 1.5 hecha: gráficos, listados, edición, presupuestos y responsive.
 - Fase 1.6 hecha: rediseño launcher oscuro y modo pantalla fija.
 - Fase 1.7 hecha: gestión de usuarios, pantalla sin token y tiempo.
-- Fase 2 hecha: chat con IA y voz (Gemini, herramientas tipadas y auditadas).
-- Fase 3 hecha: nutrición (foto, texto, objetivos, registro y resúmenes).
-- Siguientes: Home Assistant, Google Calendar,
-  Telegram (opcional).
+- Fase 2 hecha: chat con IA (pendiente: pulido visual y voz).
+- Fase 3 hecha: nutrición (foto, texto).
+- Fase 4 hecha: Casa (Home Assistant).
+- Siguientes: Google Calendar, Telegram (opcional).
 - No implementes módulos de fases futuras sin que lo pida.
 
 ## Módulos
@@ -23,7 +23,7 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Finanzas: ingresos y gastos, vista general y vista por categorías,
   presupuesto por categoría y categorías por defecto en el seed.
 - Calendario: Google Calendar.
-- Casa: Home Assistant (API REST), con consumo y control de dispositivos.
+- Casa: Home Assistant (API REST), estado, consumo y control de dispositivos por estancia.
 - Chat: texto y voz con Gemini y herramientas; chat flotante en todas las pantallas.
 
 ## Stack
@@ -93,7 +93,8 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Variables: `GEMINI_API_KEY` y `GEMINI_MODEL` en `.env`.
 - Herramientas actuales: add_expense, add_income, add_weight,
   get_finance_summary, get_budget_status, get_weight_status,
-  get_today_weather. Las nuevas fases añaden las suyas.
+  get_today_weather, add_meal, get_nutrition_status. La fase 4 añade
+  get_home_status, control_device y get_energy_usage.
 - El agente actúa siempre en nombre del usuario autenticado.
 - Si falta un dato o hay ambigüedad, pregunta antes de guardar.
 - Confirma siempre lo que ha guardado.
@@ -107,10 +108,16 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
   (long polling, `telegram_id` por usuario, solo usuarios autorizados).
 
 ## Casa (Home Assistant)
-- Cliente REST con token de larga duración en `.env`.
-- Control de dispositivos solo mediante lista blanca de entidades.
-- Muestra consumo por enchufe, estado y accesos rápidos por estancia.
-- Las acciones del agente sobre dispositivos se registran.
+- Cliente REST con `HA_URL` y `HA_TOKEN` (token de larga duración) en `.env`.
+- Timeout, reintentos y error claro si HA no responde.
+- Lectura y control solo de entidades en la lista blanca (por hogar).
+- Datos de casa compartidos por `household_id`.
+- Agrupación por estancia configurable.
+- Muestra estado, consumo por enchufe y accesos rápidos.
+- Herramientas del agente: get_home_status, control_device (solo lista
+  blanca) y get_energy_usage. Las acciones se registran en `agent_actions`.
+- Pide confirmación en acciones sensibles.
+- La pantalla `/pantalla` muestra Casa en solo lectura.
 
 ## Almacenamiento (SD)
 - SQLite en modo WAL; evita escrituras innecesarias.

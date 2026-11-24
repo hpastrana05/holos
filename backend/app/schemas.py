@@ -35,6 +35,7 @@ class ScreenSummary(BaseModel):
     target_kcal: int | None
     monthly_balance: float
     recent_transactions: list[ScreenTransaction]
+    home: dict | None = None
 
 class ChatMessage(BaseModel):
     role: str = Field(pattern="^(user|assistant)$")
@@ -71,3 +72,32 @@ class MealIn(BaseModel):
 class MealOut(MealIn, ORM): id: int; user_id: int
 class MealEstimate(MealIn): pass
 class NutritionAnalysisOut(BaseModel): meals: list[MealEstimate]; note: str = "Estimación orientativa; revisa antes de guardar."
+
+class HomeEntityIn(BaseModel):
+    entity_id: str = Field(pattern=r"^[a-z_]+\.[A-Za-z0-9_]+$", max_length=255)
+    display_name: str = Field(min_length=1, max_length=160)
+    room: str = Field(default="Sin estancia", min_length=1, max_length=100)
+    sensitive: bool | None = None
+
+class HomeEntityEdit(BaseModel):
+    display_name: str = Field(min_length=1, max_length=160)
+    room: str = Field(min_length=1, max_length=100)
+    sensitive: bool
+
+class HomeControlIn(BaseModel):
+    action: str = Field(pattern=r"^(turn_on|turn_off|toggle)$")
+
+class HomeEntityOut(HomeEntityIn, ORM):
+    id: int
+    household_id: int
+    domain: str
+    state: str | None = None
+    attributes: dict = Field(default_factory=dict)
+    available: bool = True
+    consumption: float | None = None
+    consumption_unit: str | None = None
+
+class HomeStatusOut(BaseModel):
+    connected: bool
+    entities: list[HomeEntityOut] = Field(default_factory=list)
+    error: str | None = None

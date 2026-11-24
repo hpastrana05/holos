@@ -11,6 +11,7 @@ const Dashboard = lazy(() => import("./views").then(({ Dashboard }) => ({ defaul
 const Health = lazy(() => import("./views").then(({ Health }) => ({ default: Health })));
 const Finance = lazy(() => import("./views").then(({ Finance }) => ({ default: Finance })));
 const Nutrition = lazy(() => import("./Nutrition"));
+const Home = lazy(() => import("./Home"));
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
@@ -18,13 +19,13 @@ if (import.meta.env.PROD && "serviceWorker" in navigator) {
   });
 }
 
-type Tab = "dashboard" | "health" | "finance" | "nutrition" | "chat" | "settings";
+type Tab = "dashboard" | "health" | "finance" | "nutrition" | "home" | "chat" | "settings";
 const modules: { icon: IconName; label: string; tab?: Tab }[] = [
   { icon: "health", label: "Salud", tab: "health" },
   { icon: "finance", label: "Finanzas", tab: "finance" },
   { icon: "nutrition", label: "Nutrición", tab: "nutrition" },
   { icon: "calendar", label: "Calendario" },
-  { icon: "house", label: "Casa" },
+  { icon: "house", label: "Casa", tab: "home" },
   { icon: "chat", label: "Chat", tab: "chat" },
 ];
 const navigation = [{ icon: "dashboard", label: "Inicio", tab: "dashboard" }, ...modules.filter(({ tab }) => tab)] as
@@ -98,6 +99,7 @@ function App() {
           {tab === "health" && <Health token={token} />}
           {tab === "finance" && <Finance token={token} />}
           {tab === "nutrition" && <Nutrition token={token} />}
+          {tab === "home" && <Home token={token} />}
           {tab === "chat" && <ChatView chat={chat} token={token} onOpenModule={open} />}
           {tab === "settings" && <Settings token={token} />}
         </Suspense>

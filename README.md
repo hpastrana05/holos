@@ -1,4 +1,4 @@
-# Holos — fase 3
+# Holos — fase 4
 
 Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, peso, objetivos, finanzas, autenticación JWT y aislamiento multiusuario.
 
@@ -8,6 +8,7 @@ Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, pe
 - Pantalla fija de solo lectura y PWA instalable en Android.
 - Chat con Gemini por texto y voz, con herramientas limitadas y auditadas.
 - Nutrición: estimación orientativa por texto o foto, registro privado de comidas, macros y evolución de siete días.
+- Casa: integración con Home Assistant, entidades autorizadas por hogar, control por estancia y lectura de consumo.
 
 El módulo **Chat** está disponible desde el launcher y directamente en `/chat`; el botón flotante conserva la misma conversación mientras navegas. Los mensajes y el historial breve se mantienen solo en el navegador durante la sesión.
 
@@ -20,7 +21,7 @@ El módulo **Chat** está disponible desde el launcher y directamente en `/chat`
 
 1. Instala Docker Engine y el complemento Docker Compose.
 2. Copia `.env.example` a `.env` y asigna valores seguros a `HOLOS_SECRET_KEY` y `HOLOS_ADMIN_PASSWORD`.
-   Para activar el chat, añade `GEMINI_API_KEY` y `GEMINI_MODEL`. Elige un modelo que tenga nivel gratuito en [Google AI Studio](https://aistudio.google.com/); Holos no fija un modelo por defecto.
+   Para activar el chat, añade `GEMINI_API_KEY` y `GEMINI_MODEL`. Para Casa, añade `HA_URL` (la URL interna de Home Assistant), `HA_TOKEN` (token de larga duración) y, opcionalmente, `HA_TIMEOUT_SECONDS` (8 por defecto). Elige un modelo que tenga nivel gratuito en [Google AI Studio](https://aistudio.google.com/); Holos no fija un modelo por defecto.
 3. Arranca el servicio:
 
    ```sh
@@ -34,6 +35,12 @@ Las imágenes parten de `python:3.12-slim`, Node y Nginx, disponibles para arm64
 ## Ajustes y usuarios
 
 Un administrador puede crear, editar y desactivar cuentas de su hogar en **Ajustes → Usuarios**. Cada cuenta tiene un correo o nombre de usuario, contraseña, rol, nombre visible, color y avatar. Puedes añadir un PIN de pantalla de 4 a 8 cifras. Desactivar la cuenta conserva sus datos y revoca su acceso. Debe quedar al menos un administrador activo.
+
+## Casa · Home Assistant
+
+En **Ajustes → Casa**, un administrador descubre entidades y decide cuáles se autorizan para el hogar; ninguna entidad se lee ni se controla antes de incluirla en esa lista. Allí se asignan nombre visible, estancia y si exige confirmación. Cerraduras, paneles de alarma y puertas de garaje se marcan sensibles por defecto. Las lecturas aplican reintentos cortos ante una caída de HA; las órdenes de control no se reintentan para evitar duplicar una acción.
+
+La vista **Casa** agrupa los elementos autorizados por estancia, muestra estado y sensores de potencia/energía compatibles, y ofrece interruptores para los dominios controlables. La tarjeta de `/pantalla` es solo lectura, se actualiza junto al resumen cada 60 segundos y el backend reutiliza brevemente los estados en memoria para reducir carga en la Pi.
 
 ## Pantalla fija, tiempo y PWA
 
@@ -85,5 +92,6 @@ Crea y conserva el directorio de backups en un volumen distinto o sincronízalo 
 - Las categorías pertenecen a `household_id`.
 - Las transacciones personales solo las ve su creador; las compartidas las ven los miembros del mismo hogar.
 - La gestión de usuarios y los cambios de ubicación requieren un administrador del hogar.
+- Las entidades de Casa pertenecen a `household_id`; las altas, bajas y cambios de lista blanca requieren un administrador. El agente únicamente puede consultar o controlar entidades permitidas y audita cada herramienta en `agent_actions`.
 - El chat solo puede crear gastos, ingresos y pesos, o consultar datos. Cada uso de herramienta registra usuario, herramienta, argumentos y resultado en `agent_actions`; no se guarda el texto completo de la conversación.
 - Las fotos de comida se reducen en memoria antes de enviarse a Gemini y se descartan al terminar la petición; no se guardan en la base de datos ni en logs. Las estimaciones no sustituyen consejo sanitario profesional.

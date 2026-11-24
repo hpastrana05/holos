@@ -1,4 +1,5 @@
 import json
+import re
 from calendar import monthrange
 from datetime import date, datetime
 
@@ -10,12 +11,14 @@ from sqlalchemy.orm import Session
 
 from app.core.security import current_user
 from app.db.session import get_db
-from app.models.models import AgentAction, Category, CategoryBudget, Household, Meal, MealSource, MealType, Transaction, TransactionType, User, WeightEntry, WeightGoal
+from app.models.models import AgentAction, Category, CategoryBudget, HomeEntity, Household, Meal, MealSource, MealType, Transaction, TransactionType, User, WeightEntry, WeightGoal
 from app.services.nutrition import kcal_target, macro_targets
 from app.schemas import AgentActionOut, AgentChatIn, AgentChatOut
 from app.services.llm import GeminiProvider, LLMProvider, LLMQuotaExceeded, LLMUnavailable, ToolCall
 from app.services.weather import WeatherUnavailable, fetch_forecast
 from app.settings_routes import WeatherLocation
+from app.home_routes import CONTROLLABLE_DOMAINS, serialize
+from app.services.home_assistant import HomeAssistantClient, HomeAssistantUnavailable, cached_states, invalidate_cache
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -30,6 +33,9 @@ TOOLS = [
         {"name": "get_today_weather", "description": "Consulta el tiempo de hoy del hogar.", "parameters": {"type": "object", "properties": {}}},
         {"name": "add_meal", "description": "Registra una comida solo después de que el usuario confirme explícitamente la estimación.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "carbs_g": {"type": "number"}, "fat_g": {"type": "number"}, "meal_type": {"type": "string"}, "eaten_at": {"type": "string"}}, "required": ["name", "kcal", "protein_g", "carbs_g", "fat_g", "meal_type", "eaten_at"]}},
         {"name": "get_nutrition_status", "description": "Consulta las kcal y macros de hoy frente al objetivo.", "parameters": {"type": "object", "properties": {}}},
+        {"name": "get_home_status", "description": "Consulta el estado de los dispositivos de Casa permitidos en el hogar.", "parameters": {"type": "object", "properties": {}}},
+        {"name": "get_energy_usage", "description": "Consulta el consumo de los sensores de energía permitidos.", "parameters": {"type": "object", "properties": {}}},
+        {"name": "control_device", "description": "Controla una entidad permitida por entity_id. Para entidades sensibles, úsala solo después de una confirmación explícita del usuario en este chat.", "parameters": {"type": "object", "properties": {"entity_id": {"type": "string"}, "action": {"type": "string", "enum": ["turn_on", "turn_off", "toggle"]}, "confirmed": {"type": "boolean"}}, "required": ["entity_id", "action"]}},
     ]}
 ]
 
@@ -51,6 +57,11 @@ class MealInput(BaseModel):
     protein_g: float = Field(ge=0, le=1000); carbs_g: float = Field(ge=0, le=1000); fat_g: float = Field(ge=0, le=1000)
     meal_type: MealType; eaten_at: datetime
 
+class HomeControlInput(BaseModel):
+    entity_id: str = Field(pattern=r"^[a-z_]+\.[A-Za-z0-9_]+$")
+    action: str = Field(pattern=r"^(turn_on|turn_off|toggle)$")
+    confirmed: bool = False
+
 
 def provider() -> LLMProvider:
     return GeminiProvider()
@@ -66,7 +77,7 @@ def action_log(user: User, tool: str, arguments: dict, result: str, db: Session)
     db.commit()
 
 
-def execute(call: ToolCall, user: User, db: Session) -> str:
+def execute(call: ToolCall, user: User, db: Session, *, sensitive_confirmed: bool = False) -> str:
     if call.name in ("add_expense", "add_income"):
         data = MoneyInput.model_validate(call.arguments)
         kind = TransactionType.expense if call.name == "add_expense" else TransactionType.income
@@ -130,16 +141,46 @@ def execute(call: ToolCall, user: User, db: Session) -> str:
         target = kcal_target(user, db); macros = macro_targets(user, db, target)
         goal = f" de {target:.0f}" if target else ""
         return f"Hoy: {float(rows[0]):.0f}{goal} kcal; proteínas {float(rows[1]):.0f}/{macros['protein_g']:.0f} g, carbohidratos {float(rows[2]):.0f}/{macros['carbs_g']:.0f} g, grasas {float(rows[3]):.0f}/{macros['fat_g']:.0f} g."
+    if call.name in {"get_home_status", "get_energy_usage"}:
+        items = db.query(HomeEntity).filter_by(household_id=user.household_id).order_by(HomeEntity.room, HomeEntity.display_name).all()
+        try:
+            states = cached_states(user.household_id, HomeAssistantClient())
+        except HomeAssistantUnavailable:
+            return "No puedo conectar con Home Assistant ahora mismo."
+        rows = [serialize(item, states.get(item.entity_id)) for item in items]
+        if call.name == "get_energy_usage":
+            rows = [item for item in rows if item["consumption"] is not None]
+            if not rows: return "No hay sensores de consumo permitidos o disponibles."
+            return "; ".join(f"{item['display_name']}: {item['consumption']:g} {item['consumption_unit']}" for item in rows) + "."
+        if not rows: return "No hay dispositivos de Casa permitidos todavía."
+        return "; ".join(f"{item['display_name']} ({item['room']}): {item['state'] or 'sin estado'}" for item in rows) + "."
+    if call.name == "control_device":
+        data = HomeControlInput.model_validate(call.arguments)
+        item = db.query(HomeEntity).filter_by(household_id=user.household_id, entity_id=data.entity_id).first()
+        if not item: return "No he hecho ningún cambio: esa entidad no está permitida en este hogar."
+        if item.domain not in CONTROLLABLE_DOMAINS:
+            return "No he hecho ningún cambio: esa entidad no admite control."
+        if item.sensitive and not (data.confirmed and sensitive_confirmed):
+            return f"{item.display_name} es una acción sensible. Pide confirmación explícita antes de cambiarla."
+        try:
+            HomeAssistantClient().call_service(item.domain, data.action, item.entity_id)
+            invalidate_cache(user.household_id)
+        except HomeAssistantUnavailable:
+            return "Home Assistant no pudo ejecutar la acción; no la he reintentado."
+        return f"Acción enviada: {data.action} en {item.display_name}."
     raise ValueError("Herramienta no permitida")
 
 
 @router.post("/chat", response_model=AgentChatOut)
 def chat(data: AgentChatIn, user: User = Depends(current_user), db: Session = Depends(get_db), llm: LLMProvider = Depends(provider)):
     categories = [f"{item.name} ({item.kind.value})" for item in db.query(Category).filter_by(household_id=user.household_id)]
+    home_entities = db.query(HomeEntity).filter_by(household_id=user.household_id).all()
     system = (f"Eres Holos, asistente doméstico. Hoy es {date.today():%d/%m/%Y}. Responde en español, breve y directo. "
               f"Categorías del hogar: {', '.join(categories) or 'ninguna'}. Antes de crear un dato exige importe/peso, fecha y categoría inequívoca; si falta algo, pregunta y no llames herramientas. "
-              "Para add_meal, presenta siempre la estimación y pide una confirmación explícita antes de llamar la herramienta. Solo usa las herramientas disponibles y no inventes resultados.")
+              f"Entidades de Casa permitidas: {', '.join(f'{item.display_name}={item.entity_id}' for item in home_entities) or 'ninguna'}. "
+              "Para add_meal, presenta siempre la estimación y pide una confirmación explícita antes de llamar la herramienta. Para control_device, pide confirmación explícita antes de actuar en una entidad marcada como sensible. Solo usa las herramientas disponibles y no inventes resultados.")
     messages = [{"role": message.role, "content": message.content} for message in data.history[-12:]] + [{"role": "user", "content": data.message}]
+    sensitive_confirmed = bool(re.search(r"\b(s[ií]|confirmo|confirmado|adelante|autoriza(?:do)?|procede)\b", data.message, re.IGNORECASE))
     try:
         reply = llm.complete(system=system, messages=messages, tools=TOOLS)
     except LLMQuotaExceeded as error:
@@ -150,7 +191,7 @@ def chat(data: AgentChatIn, user: User = Depends(current_user), db: Session = De
     confirmations = []
     for call in reply.tool_calls:
         try:
-            result = execute(call, user, db)
+            result = execute(call, user, db, sensitive_confirmed=sensitive_confirmed)
             action_log(user, call.name, call.arguments, result, db)
             actions.append(AgentActionOut(tool=call.name, result=result)); confirmations.append(result)
         except (ValidationError, ValueError, TypeError) as error:

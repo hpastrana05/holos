@@ -44,6 +44,8 @@ from app.settings_routes import PublicUser
 from app.settings_routes import router as settings_router
 from app.agent_routes import router as agent_router
 from app.nutrition_routes import router as nutrition_router
+from app.home_routes import router as home_router
+from app.home_routes import status as home_status
 
 app = FastAPI(title="Holos API", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:8080"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -52,6 +54,7 @@ app.include_router(settings_router)
 app.include_router(screen_router)
 app.include_router(agent_router)
 app.include_router(nutrition_router)
+app.include_router(home_router)
 
 def owned(model, item_id, user, db):
     item = db.query(model).filter(model.id == item_id, model.user_id == user.id).first()
@@ -106,6 +109,7 @@ def screen_summary(
         "target_kcal": daily_kcal(profile, weight, goal),
         "monthly_balance": summary_for_range(*period(today.year, today.month), user, db, screen_only=True)["balance"],
         "recent_transactions": recent,
+        "home": home_status(user, db),
     }
 
 

@@ -125,3 +125,14 @@ class Meal(Base):
     fat_g: Mapped[float] = mapped_column(Float, default=0)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     source: Mapped[MealSource] = mapped_column(Enum(MealSource), default=MealSource.manual)
+
+class HomeEntity(Base):
+    __tablename__ = "home_entities"
+    __table_args__ = (UniqueConstraint("household_id", "entity_id", name="uq_home_entity_household_entity"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)
+    entity_id: Mapped[str] = mapped_column(String(255))
+    display_name: Mapped[str] = mapped_column(String(160))
+    room: Mapped[str] = mapped_column(String(100), default="Sin estancia")
+    domain: Mapped[str] = mapped_column(String(64))
+    sensitive: Mapped[bool] = mapped_column(Boolean, default=False)

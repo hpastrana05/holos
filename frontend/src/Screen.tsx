@@ -10,6 +10,7 @@ type Summary = {
   target_kcal: number | null;
   monthly_balance: number;
   recent_transactions: { id: number; date: string; kind: "income" | "expense"; amount: number }[];
+  home?: { connected: boolean; error?: string; entities: { id: number; display_name: string; state?: string; consumption?: number; consumption_unit?: string }[] };
 };
 
 const storageKey = "holos-screen-session";
@@ -231,7 +232,9 @@ export default function Screen() {
                 </section>
                 <section className="screen-house module-house">
                   <h2><Icon name="house" /> Casa</h2>
-                  <p className="state">Consumo y dispositivos · Próximamente</p>
+                  {!summary.home?.connected ? <p className="state">{summary.home?.error || "Home Assistant no disponible"}</p> : summary.home.entities.length ? <ul className="screen-transactions">
+                    {summary.home.entities.slice(0, 3).map(entity => <li key={entity.id}><span>{entity.display_name} · {entity.state || "—"}</span><b>{entity.consumption !== undefined ? `${entity.consumption} ${entity.consumption_unit}` : ""}</b></li>)}
+                  </ul> : <p className="state">No hay dispositivos configurados.</p>}
                 </section>
               </div>
             ) : !error && <p className="state" role="status">Cargando resumen…</p>}

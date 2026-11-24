@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     household_name: str = "Mi hogar"
     gemini_api_key: str | None = None
     gemini_model: str | None = None
+    ha_url: str | None = None
+    ha_token: str | None = None
+    ha_timeout_seconds: float = 8
 
 
 settings = Settings()
