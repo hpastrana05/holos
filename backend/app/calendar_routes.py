@@ -114,6 +114,13 @@ def month_events(year: int | None = None, month: int | None = Query(None, ge=1, 
     end = datetime(year + 1, 1, 1, tzinfo=MADRID) if month == 12 else datetime(year, month + 1, 1, tzinfo=MADRID)
     return range_events(user, db, start, end, f"month-{year}-{month}")
 
+@router.get("/events/range")
+def events_range(start: datetime, end: datetime, user: Account, db: Db):
+    if end <= start or end - start > timedelta(days=32): raise HTTPException(422, "El rango del calendario no es válido.")
+    start = start.replace(tzinfo=MADRID) if start.tzinfo is None else start.astimezone(MADRID)
+    end = end.replace(tzinfo=MADRID) if end.tzinfo is None else end.astimezone(MADRID)
+    return range_events(user, db, start, end, f"range-{start.isoformat()}-{end.isoformat()}")
+
 @router.post("/events", status_code=201)
 def create_event(data: CalendarEventIn, user: Account, db: Db):
     if data.end <= data.start: raise HTTPException(422, "La hora de fin debe ser posterior a la de inicio.")
