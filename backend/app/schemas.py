@@ -108,6 +108,7 @@ class CalendarEventIn(BaseModel):
     start: datetime
     end: datetime
     description: str | None = Field(default=None, max_length=2000)
+    calendar_id: str | None = Field(default=None, max_length=1024)
 
 class CalendarEventOut(BaseModel):
     id: str | None = None

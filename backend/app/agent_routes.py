@@ -1,5 +1,6 @@
 import json
 import re
+from urllib.parse import quote
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 
@@ -19,7 +20,7 @@ from app.services.weather import WeatherUnavailable, fetch_forecast
 from app.settings_routes import WeatherLocation
 from app.home_routes import CONTROLLABLE_DOMAINS, serialize
 from app.services.home_assistant import HomeAssistantClient, HomeAssistantUnavailable, cached_states, invalidate_cache
-from app.services.calendar import CalendarDisconnected, CalendarUnavailable, MADRID, cached_events, clear_events, request
+from app.services.calendar import CalendarDisconnected, CalendarUnavailable, MADRID, cached_events, calendars as google_calendars, clear_events, request
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -38,7 +39,7 @@ TOOLS = [
         {"name": "get_energy_usage", "description": "Consulta el consumo de los sensores de energía permitidos.", "parameters": {"type": "object", "properties": {}}},
         {"name": "control_device", "description": "Controla una entidad permitida por entity_id. Para entidades sensibles, úsala solo después de una confirmación explícita del usuario en este chat.", "parameters": {"type": "object", "properties": {"entity_id": {"type": "string"}, "action": {"type": "string", "enum": ["turn_on", "turn_off", "toggle"]}, "confirmed": {"type": "boolean"}}, "required": ["entity_id", "action"]}},
         {"name": "get_calendar_events", "description": "Consulta los próximos eventos del calendario personal del usuario.", "parameters": {"type": "object", "properties": {"days": {"type": "integer"}}}},
-        {"name": "add_calendar_event", "description": "Crea un evento personal solo después de confirmación explícita del usuario.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "start": {"type": "string"}, "end": {"type": "string"}, "description": {"type": "string"}, "confirmed": {"type": "boolean"}}, "required": ["title", "start", "end"]}},
+        {"name": "add_calendar_event", "description": "Crea un evento personal solo después de confirmación explícita del usuario.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "start": {"type": "string"}, "end": {"type": "string"}, "description": {"type": "string"}, "calendar_id": {"type": "string"}, "confirmed": {"type": "boolean"}}, "required": ["title", "start", "end"]}},
     ]}
 ]
 
@@ -70,6 +71,7 @@ class CalendarEventInput(BaseModel):
     start: datetime
     end: datetime
     description: str | None = Field(default=None, max_length=2000)
+    calendar_id: str | None = Field(default=None, max_length=1024)
     confirmed: bool = False
 
 def calendar_credential(user: User, db: Session) -> CalendarCredential | None:
@@ -199,7 +201,10 @@ def execute(call: ToolCall, user: User, db: Session, *, sensitive_confirmed: boo
         start = data.start.replace(tzinfo=MADRID) if data.start.tzinfo is None else data.start.astimezone(MADRID)
         end = data.end.replace(tzinfo=MADRID) if data.end.tzinfo is None else data.end.astimezone(MADRID)
         try:
-            request(db, item, "POST", "/calendars/primary/events", json={"summary": data.title, "description": data.description, "start": {"dateTime": start.isoformat(), "timeZone": "Europe/Madrid"}, "end": {"dateTime": end.isoformat(), "timeZone": "Europe/Madrid"}}); clear_events(user.id)
+            sources = google_calendars(db, item); active = {source["id"] for source in sources if source["selected"]}
+            calendar_id = data.calendar_id or next((source["id"] for source in sources if source["id"] == "primary" and source["selected"]), next(iter(active), None))
+            if not calendar_id or calendar_id not in active: return "No he creado el evento: el calendario elegido no está activo."
+            request(db, item, "POST", f"/calendars/{quote(calendar_id, safe='')}/events", json={"summary": data.title, "description": data.description, "start": {"dateTime": start.isoformat(), "timeZone": "Europe/Madrid"}, "end": {"dateTime": end.isoformat(), "timeZone": "Europe/Madrid"}}); clear_events(user.id)
         except (CalendarDisconnected, CalendarUnavailable) as error: return str(error)
         return f"Evento creado: {data.title}, el {start:%d/%m a las %H:%M}."
     raise ValueError("Herramienta no permitida")

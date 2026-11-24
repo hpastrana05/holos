@@ -27,12 +27,13 @@ def test_calendar_is_private_to_user(client, db, monkeypatch):
 def test_calendar_create_and_api_error(client, db, monkeypatch):
     connect(db)
     from app import calendar_routes
+    monkeypatch.setattr(calendar_routes, "google_calendars", lambda *_: [{"id": "primary", "name": "Personal", "color": "#111", "selected": True}])
     captured = {}
     def fake_request(_db, _credential, method, path, **kwargs):
         captured.update(method=method, path=path, **kwargs); return {"id": "created", "summary": "Cena", "start": {"dateTime": "2026-01-01T20:00:00+01:00"}, "end": {"dateTime": "2026-01-01T21:00:00+01:00"}}
     monkeypatch.setattr(calendar_routes, "request", fake_request)
     result = client.post("/calendar/events", headers=token(client), json={"title": "Cena", "start": "2026-01-01T20:00:00", "end": "2026-01-01T21:00:00"})
-    assert result.status_code == 201 and captured["method"] == "POST" and captured["json"]["start"]["timeZone"] == "Europe/Madrid"
+    assert result.status_code == 201 and captured["method"] == "POST" and captured["path"] == "/calendars/primary/events" and captured["json"]["start"]["timeZone"] == "Europe/Madrid"
     monkeypatch.setattr(calendar_routes, "cached_events", lambda *_: (_ for _ in ()).throw(CalendarDisconnected("La autorización de Google ha caducado o fue revocada.")))
     assert client.get("/calendar/events/today", headers=token(client)).status_code == 409
 

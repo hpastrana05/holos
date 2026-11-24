@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.models.models import CalendarCredential, User
 from app.schemas import CalendarEventIn, CalendarSelectionIn, CalendarStatusOut
 from app.services.calendar import CalendarDisconnected, CalendarUnavailable, cached_events, calendars as google_calendars, clear_events, disconnect, exchange_code, encrypt_refresh, oauth_url, request
+from urllib.parse import quote
 
 router = APIRouter(prefix="/calendar", tags=["calendar"])
 Db = Annotated[Session, Depends(get_db)]
@@ -127,7 +128,11 @@ def create_event(data: CalendarEventIn, user: Account, db: Db):
     start = data.start.replace(tzinfo=MADRID) if data.start.tzinfo is None else data.start.astimezone(MADRID)
     end = data.end.replace(tzinfo=MADRID) if data.end.tzinfo is None else data.end.astimezone(MADRID)
     try:
-        result = request(db, connected(user, db), "POST", "/calendars/primary/events", json={"summary": data.title, "description": data.description, "start": {"dateTime": start.isoformat(), "timeZone": "Europe/Madrid"}, "end": {"dateTime": end.isoformat(), "timeZone": "Europe/Madrid"}})
+        item = connected(user, db); sources = google_calendars(db, item)
+        available = {source["id"] for source in sources if source["selected"]}
+        calendar_id = data.calendar_id or next((source["id"] for source in sources if source["id"] == "primary" and source["selected"]), next(iter(available), None))
+        if not calendar_id or calendar_id not in available: raise HTTPException(422, "Elige un calendario activo para el evento.")
+        result = request(db, item, "POST", f"/calendars/{quote(calendar_id, safe='')}/events", json={"summary": data.title, "description": data.description, "start": {"dateTime": start.isoformat(), "timeZone": "Europe/Madrid"}, "end": {"dateTime": end.isoformat(), "timeZone": "Europe/Madrid"}})
         clear_events(user.id)
         return {"id": result.get("id"), "title": result.get("summary", data.title), "start": result.get("start", {}).get("dateTime", start.isoformat()), "end": result.get("end", {}).get("dateTime", end.isoformat()), "all_day": False}
     except (CalendarDisconnected, CalendarUnavailable) as error: translate(error)
