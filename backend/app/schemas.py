@@ -36,6 +36,7 @@ class ScreenSummary(BaseModel):
     monthly_balance: float
     recent_transactions: list[ScreenTransaction]
     home: dict | None = None
+    calendar: dict | None = None
 
 class ChatMessage(BaseModel):
     role: str = Field(pattern="^(user|assistant)$")
@@ -100,4 +101,21 @@ class HomeEntityOut(HomeEntityIn, ORM):
 class HomeStatusOut(BaseModel):
     connected: bool
     entities: list[HomeEntityOut] = Field(default_factory=list)
+    error: str | None = None
+
+class CalendarEventIn(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    start: datetime
+    end: datetime
+    description: str | None = Field(default=None, max_length=2000)
+
+class CalendarEventOut(BaseModel):
+    id: str | None = None
+    title: str
+    start: str
+    end: str | None = None
+    all_day: bool = False
+
+class CalendarStatusOut(BaseModel):
+    connected: bool
     error: str | None = None

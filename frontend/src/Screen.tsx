@@ -11,6 +11,7 @@ type Summary = {
   monthly_balance: number;
   recent_transactions: { id: number; date: string; kind: "income" | "expense"; amount: number }[];
   home?: { connected: boolean; error?: string; entities: { id: number; display_name: string; state?: string; consumption?: number; consumption_unit?: string }[] };
+  calendar?: { connected: boolean; error?: string; events: { id?: string; title: string; start: string }[] };
 };
 
 const storageKey = "holos-screen-session";
@@ -235,6 +236,10 @@ export default function Screen() {
                   {!summary.home?.connected ? <p className="state">{summary.home?.error || "Home Assistant no disponible"}</p> : summary.home.entities.length ? <ul className="screen-transactions">
                     {summary.home.entities.slice(0, 3).map(entity => <li key={entity.id}><span>{entity.display_name} · {entity.state || "—"}</span><b>{entity.consumption !== undefined ? `${entity.consumption} ${entity.consumption_unit}` : ""}</b></li>)}
                   </ul> : <p className="state">No hay dispositivos configurados.</p>}
+                </section>
+                <section className="screen-house module-calendar">
+                  <h2><Icon name="calendar" /> Agenda</h2>
+                  {summary.calendar?.connected && summary.calendar.events.length ? <ul className="screen-transactions">{summary.calendar.events.map(event => <li key={event.id || event.start}><span>{event.title}</span><b>{new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" }).format(new Date(event.start))}</b></li>)}</ul> : <p className="state">{summary.calendar?.error || "Sin próximos eventos"}</p>}
                 </section>
               </div>
             ) : !error && <p className="state" role="status">Cargando resumen…</p>}

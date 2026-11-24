@@ -1,4 +1,4 @@
-# Holos — fase 4
+# Holos — fase 5
 
 Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, peso, objetivos, finanzas, autenticación JWT y aislamiento multiusuario.
 
@@ -9,6 +9,7 @@ Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, pe
 - Chat con Gemini por texto y voz, con herramientas limitadas y auditadas.
 - Nutrición: estimación orientativa por texto o foto, registro privado de comidas, macros y evolución de siete días.
 - Casa: integración con Home Assistant, entidades autorizadas por hogar, control por estancia y lectura de consumo.
+- Calendario: Google Calendar personal mediante OAuth 2.0, agenda y creación de eventos.
 
 El módulo **Chat** está disponible desde el launcher y directamente en `/chat`; el botón flotante conserva la misma conversación mientras navegas. Los mensajes y el historial breve se mantienen solo en el navegador durante la sesión.
 
@@ -21,7 +22,7 @@ El módulo **Chat** está disponible desde el launcher y directamente en `/chat`
 
 1. Instala Docker Engine y el complemento Docker Compose.
 2. Copia `.env.example` a `.env` y asigna valores seguros a `HOLOS_SECRET_KEY` y `HOLOS_ADMIN_PASSWORD`.
-   Para activar el chat, añade `GEMINI_API_KEY` y `GEMINI_MODEL`. Para Casa, añade `HA_URL` (la URL interna de Home Assistant), `HA_TOKEN` (token de larga duración) y, opcionalmente, `HA_TIMEOUT_SECONDS` (8 por defecto). Elige un modelo que tenga nivel gratuito en [Google AI Studio](https://aistudio.google.com/); Holos no fija un modelo por defecto.
+   Para activar el chat, añade `GEMINI_API_KEY` y `GEMINI_MODEL`. Para Casa, añade `HA_URL` (la URL interna de Home Assistant), `HA_TOKEN` (token de larga duración) y, opcionalmente, `HA_TIMEOUT_SECONDS` (8 por defecto). Para Calendario, configura `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI` con la URL pública HTTPS de `/api/calendar/callback`. Elige un modelo que tenga nivel gratuito en [Google AI Studio](https://aistudio.google.com/); Holos no fija un modelo por defecto.
 3. Arranca el servicio:
 
    ```sh
@@ -41,6 +42,10 @@ Un administrador puede crear, editar y desactivar cuentas de su hogar en **Ajust
 En **Ajustes → Casa**, un administrador descubre entidades y decide cuáles se autorizan para el hogar; ninguna entidad se lee ni se controla antes de incluirla en esa lista. Allí se asignan nombre visible, estancia y si exige confirmación. Cerraduras, paneles de alarma y puertas de garaje se marcan sensibles por defecto. Las lecturas aplican reintentos cortos ante una caída de HA; las órdenes de control no se reintentan para evitar duplicar una acción.
 
 La vista **Casa** agrupa los elementos autorizados por estancia, muestra estado y sensores de potencia/energía compatibles, y ofrece interruptores para los dominios controlables. La tarjeta de `/pantalla` es solo lectura, se actualiza junto al resumen cada 60 segundos y el backend reutiliza brevemente los estados en memoria para reducir carga en la Pi.
+
+## Google Calendar
+
+Cada usuario conecta su propia cuenta desde **Ajustes → Google Calendar**. Holos solicita solo permisos para consultar calendarios y leer/crear eventos. El refresh token se cifra antes de guardarse y no se registra en logs. **No cambies `HOLOS_SECRET_KEY` una vez conectes Google:** se usa para cifrar esos tokens; si cambia, Holos desconecta el calendario de forma segura y tendrás que volver a autorizarlo. La agenda usa siempre `Europe/Madrid`; `/pantalla` solo muestra título y hora de los próximos eventos de la persona seleccionada.
 
 ## Pantalla fija, tiempo y PWA
 

@@ -1,7 +1,7 @@
 import json
 import re
 from calendar import monthrange
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends
@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import current_user
 from app.db.session import get_db
-from app.models.models import AgentAction, Category, CategoryBudget, HomeEntity, Household, Meal, MealSource, MealType, Transaction, TransactionType, User, WeightEntry, WeightGoal
+from app.models.models import AgentAction, CalendarCredential, Category, CategoryBudget, HomeEntity, Household, Meal, MealSource, MealType, Transaction, TransactionType, User, WeightEntry, WeightGoal
 from app.services.nutrition import kcal_target, macro_targets
 from app.schemas import AgentActionOut, AgentChatIn, AgentChatOut
 from app.services.llm import GeminiProvider, LLMProvider, LLMQuotaExceeded, LLMUnavailable, ToolCall
@@ -19,6 +19,7 @@ from app.services.weather import WeatherUnavailable, fetch_forecast
 from app.settings_routes import WeatherLocation
 from app.home_routes import CONTROLLABLE_DOMAINS, serialize
 from app.services.home_assistant import HomeAssistantClient, HomeAssistantUnavailable, cached_states, invalidate_cache
+from app.services.calendar import CalendarDisconnected, CalendarUnavailable, MADRID, cached_events, clear_events, request
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -36,6 +37,8 @@ TOOLS = [
         {"name": "get_home_status", "description": "Consulta el estado de los dispositivos de Casa permitidos en el hogar.", "parameters": {"type": "object", "properties": {}}},
         {"name": "get_energy_usage", "description": "Consulta el consumo de los sensores de energía permitidos.", "parameters": {"type": "object", "properties": {}}},
         {"name": "control_device", "description": "Controla una entidad permitida por entity_id. Para entidades sensibles, úsala solo después de una confirmación explícita del usuario en este chat.", "parameters": {"type": "object", "properties": {"entity_id": {"type": "string"}, "action": {"type": "string", "enum": ["turn_on", "turn_off", "toggle"]}, "confirmed": {"type": "boolean"}}, "required": ["entity_id", "action"]}},
+        {"name": "get_calendar_events", "description": "Consulta los próximos eventos del calendario personal del usuario.", "parameters": {"type": "object", "properties": {"days": {"type": "integer"}}}},
+        {"name": "add_calendar_event", "description": "Crea un evento personal solo después de confirmación explícita del usuario.", "parameters": {"type": "object", "properties": {"title": {"type": "string"}, "start": {"type": "string"}, "end": {"type": "string"}, "description": {"type": "string"}, "confirmed": {"type": "boolean"}}, "required": ["title", "start", "end"]}},
     ]}
 ]
 
@@ -61,6 +64,16 @@ class HomeControlInput(BaseModel):
     entity_id: str = Field(pattern=r"^[a-z_]+\.[A-Za-z0-9_]+$")
     action: str = Field(pattern=r"^(turn_on|turn_off|toggle)$")
     confirmed: bool = False
+
+class CalendarEventInput(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    start: datetime
+    end: datetime
+    description: str | None = Field(default=None, max_length=2000)
+    confirmed: bool = False
+
+def calendar_credential(user: User, db: Session) -> CalendarCredential | None:
+    return db.query(CalendarCredential).filter_by(user_id=user.id, connected=True).first()
 
 
 def provider() -> LLMProvider:
@@ -168,6 +181,27 @@ def execute(call: ToolCall, user: User, db: Session, *, sensitive_confirmed: boo
         except HomeAssistantUnavailable:
             return "Home Assistant no pudo ejecutar la acción; no la he reintentado."
         return f"Acción enviada: {data.action} en {item.display_name}."
+    if call.name == "get_calendar_events":
+        days = max(1, min(31, int(call.arguments.get("days", 7))))
+        item = calendar_credential(user, db)
+        if not item: return "Google Calendar no está conectado para este usuario."
+        try:
+            now = datetime.now(MADRID); rows = cached_events(db, item, now, now + timedelta(days=days), f"agent-{days}")
+        except (CalendarDisconnected, CalendarUnavailable) as error: return str(error)
+        if not rows: return "No tienes eventos próximos."
+        return "; ".join(f"{item['title']}: {item['start']}" for item in rows) + "."
+    if call.name == "add_calendar_event":
+        data = CalendarEventInput.model_validate(call.arguments)
+        if not (data.confirmed and sensitive_confirmed): return "Muestra primero el evento y pide una confirmación explícita antes de crearlo."
+        if data.end <= data.start: raise ValueError("El fin debe ser posterior al inicio")
+        item = calendar_credential(user, db)
+        if not item: return "Google Calendar no está conectado para este usuario."
+        start = data.start.replace(tzinfo=MADRID) if data.start.tzinfo is None else data.start.astimezone(MADRID)
+        end = data.end.replace(tzinfo=MADRID) if data.end.tzinfo is None else data.end.astimezone(MADRID)
+        try:
+            request(db, item, "POST", "/calendars/primary/events", json={"summary": data.title, "description": data.description, "start": {"dateTime": start.isoformat(), "timeZone": "Europe/Madrid"}, "end": {"dateTime": end.isoformat(), "timeZone": "Europe/Madrid"}}); clear_events(user.id)
+        except (CalendarDisconnected, CalendarUnavailable) as error: return str(error)
+        return f"Evento creado: {data.title}, el {start:%d/%m a las %H:%M}."
     raise ValueError("Herramienta no permitida")
 
 
@@ -178,7 +212,7 @@ def chat(data: AgentChatIn, user: User = Depends(current_user), db: Session = De
     system = (f"Eres Holos, asistente doméstico. Hoy es {date.today():%d/%m/%Y}. Responde en español, breve y directo. "
               f"Categorías del hogar: {', '.join(categories) or 'ninguna'}. Antes de crear un dato exige importe/peso, fecha y categoría inequívoca; si falta algo, pregunta y no llames herramientas. "
               f"Entidades de Casa permitidas: {', '.join(f'{item.display_name}={item.entity_id}' for item in home_entities) or 'ninguna'}. "
-              "Para add_meal, presenta siempre la estimación y pide una confirmación explícita antes de llamar la herramienta. Para control_device, pide confirmación explícita antes de actuar en una entidad marcada como sensible. Solo usa las herramientas disponibles y no inventes resultados.")
+              "Para add_meal, presenta siempre la estimación y pide una confirmación explícita antes de llamar la herramienta. Para control_device, pide confirmación explícita antes de actuar en una entidad marcada como sensible. Para add_calendar_event, muestra título, fecha, inicio y fin y pide confirmación explícita antes de crear. Solo usa las herramientas disponibles y no inventes resultados.")
     messages = [{"role": message.role, "content": message.content} for message in data.history[-12:]] + [{"role": "user", "content": data.message}]
     sensitive_confirmed = bool(re.search(r"\b(s[ií]|confirmo|confirmado|adelante|autoriza(?:do)?|procede)\b", data.message, re.IGNORECASE))
     try:

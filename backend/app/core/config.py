@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     ha_url: str | None = None
     ha_token: str | None = None
     ha_timeout_seconds: float = 8
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    google_redirect_uri: str | None = None
 
 
 settings = Settings()

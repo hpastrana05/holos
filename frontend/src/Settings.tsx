@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { AccountAvatar, avatars, type Account } from "./AccountAvatar";
 import { api, Field } from "./shared";
 import Home from "./Home";
+import Calendar from "./Calendar";
 
 type Location = { name: string; latitude: number; longitude: number };
 
@@ -30,6 +31,7 @@ export default function Settings({ token }: { token: string }) {
       <div className="settings-grid">
         {account.role === "admin" && <UserSettings token={token} />}
         {account.role === "admin" && <Home token={token} settings />}
+        <Calendar token={token} settings />
         <LocationSettings token={token} location={location} editable={account.role === "admin"} />
         <VoiceSettings />
       </div>

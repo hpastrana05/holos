@@ -55,7 +55,8 @@ export function Dashboard({ token }: { token: string }) {
   const health = useLoad(token, "/health/summary"),
     series = useLoad(token, "/finance/summary/monthly-series?months=6"),
     recent = useLoad(token, "/finance/transactions?limit=5"),
-    nutrition = useLoad(token, "/nutrition/summary");
+    nutrition = useLoad(token, "/nutrition/summary"),
+    calendar = useLoad(token, "/calendar/events/upcoming?days=7");
   return (
     <>
       <h2>Resumen</h2>
@@ -71,6 +72,11 @@ export function Dashboard({ token }: { token: string }) {
               Objetivo: {health.data?.target_weight_kg ?? "—"} kg · Restan{" "}
               {health.data?.remaining_kg ?? "—"} kg
             </small>
+          </article>
+          <article>
+            <label>Próximo evento</label>
+            <b>{calendar.data?.[0]?.title ?? "—"}</b>
+            <small>{calendar.data?.[0]?.start ? new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Madrid" }).format(new Date(calendar.data[0].start)) : "Conecta Google Calendar"}</small>
           </article>
           <article>
             <label>Objetivo diario</label>

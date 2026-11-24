@@ -136,3 +136,12 @@ class HomeEntity(Base):
     room: Mapped[str] = mapped_column(String(100), default="Sin estancia")
     domain: Mapped[str] = mapped_column(String(64))
     sensitive: Mapped[bool] = mapped_column(Boolean, default=False)
+
+class CalendarCredential(Base):
+    __tablename__ = "calendar_credentials"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    connected: Mapped[bool] = mapped_column(Boolean, default=False)
+    calendar_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

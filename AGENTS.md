@@ -13,7 +13,8 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Fase 2 hecha: chat con IA (pendiente: pulido visual y voz).
 - Fase 3 hecha: nutrición (foto, texto).
 - Fase 4 hecha: Casa (Home Assistant).
-- Siguientes: Google Calendar, Telegram (opcional).
+- Fase 5 en curso: Google Calendar.
+- Siguientes: Telegram (opcional), reloj/Health Connect.
 - No implementes módulos de fases futuras sin que lo pida.
 
 ## Módulos
@@ -22,7 +23,8 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Nutrición: comidas por foto/texto/voz con estimación aproximada.
 - Finanzas: ingresos y gastos, vista general y vista por categorías,
   presupuesto por categoría y categorías por defecto en el seed.
-- Calendario: Google Calendar.
+- Calendario: Google Calendar por usuario; agenda, vista mensual y
+  creación de eventos desde el chat.
 - Casa: Home Assistant (API REST), estado, consumo y control de dispositivos por estancia.
 - Chat: texto y voz con Gemini y herramientas; chat flotante en todas las pantallas.
 
@@ -93,8 +95,8 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Variables: `GEMINI_API_KEY` y `GEMINI_MODEL` en `.env`.
 - Herramientas actuales: add_expense, add_income, add_weight,
   get_finance_summary, get_budget_status, get_weight_status,
-  get_today_weather, add_meal, get_nutrition_status. La fase 4 añade
-  get_home_status, control_device y get_energy_usage.
+  get_today_weather, add_meal, get_nutrition_status, get_home_status,
+  control_device, get_energy_usage. Las nuevas fases añaden las suyas.
 - El agente actúa siempre en nombre del usuario autenticado.
 - Si falta un dato o hay ambigüedad, pregunta antes de guardar.
 - Confirma siempre lo que ha guardado.
@@ -142,3 +144,15 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Mantén historial de peso y objetivos sin sobrescribir.
 - kcal objetivo con Mifflin-St Jeor + factor de actividad.
 - Limita el déficit a un máximo seguro.
+
+## Calendario (Google Calendar)
+- OAuth 2.0 por usuario con acceso offline; credenciales por `user_id`.
+- Variables: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+  `GOOGLE_REDIRECT_URI` en `.env`.
+- Refresh token cifrado en la base de datos; nunca en logs.
+- Permisos mínimos: leer y crear eventos.
+- Caché corta en memoria; si el token caduca o se revoca, marca el
+  calendario como desconectado y avisa.
+- Cada usuario solo ve su calendario.
+- Herramientas del agente: get_calendar_events y add_calendar_event
+  (con confirmación antes de crear).
