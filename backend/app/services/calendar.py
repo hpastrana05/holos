@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from threading import Lock
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -93,7 +93,12 @@ def cached_events(db: Session, credential: CalendarCredential, start: datetime, 
         if item and now - item[0] < 30: return item[1]
     rows = []
     for calendar in selected:
-        payload = request(db, credential, "GET", f"/calendars/{httpx.URL(calendar['id']).raw_path.decode()}/events", params={"timeMin": start.astimezone(MADRID).isoformat(), "timeMax": end.astimezone(MADRID).isoformat(), "singleEvents": "true", "orderBy": "startTime", "timeZone": "Europe/Madrid"})
+        try:
+            calendar_id = quote(calendar["id"], safe="")
+            payload = request(db, credential, "GET", f"/calendars/{calendar_id}/events", params={"timeMin": start.astimezone(MADRID).isoformat(), "timeMax": end.astimezone(MADRID).isoformat(), "singleEvents": "true", "orderBy": "startTime", "timeZone": "Europe/Madrid"})
+        except CalendarUnavailable:
+            # A read-only/special calendar should not hide events from the rest.
+            continue
         rows.extend({"id": f"{calendar['id']}:{event.get('id')}", "calendar_id": calendar["id"], "calendar_name": calendar["name"], "color": calendar["color"], "title": event.get("summary") or "Sin título", "start": event.get("start", {}).get("dateTime") or event.get("start", {}).get("date"), "end": event.get("end", {}).get("dateTime") or event.get("end", {}).get("date"), "all_day": "date" in event.get("start", {})} for event in payload.get("items", []))
     rows.sort(key=lambda event: event["start"])
     with _lock: _cache[cache_key] = (now, rows)
