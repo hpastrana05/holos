@@ -566,6 +566,7 @@ export function Finance({ token }: { token: string }) {
       token,
       `/finance/transactions?start=${start}&end=${end}${filters.kind ? `&kind=${filters.kind}` : ""}${filters.category ? `&category_id=${filters.category}` : ""}`,
     );
+  const categoriesLoading = categories.data === null;
   if (!Array.isArray(categories.data)) categories.data = [];
   if (!monthly.data) monthly.data = { income: 0, expense: 0, balance: 0 };
   if (!Array.isArray(series.data)) series.data = [];
@@ -708,6 +709,19 @@ export function Finance({ token }: { token: string }) {
                     ))}
                 </ul>
               </section>
+              <CategoryPanel
+                token={token}
+                items={categories.data}
+                loading={categoriesLoading}
+                error={categories.error}
+                onNotice={setNotice}
+                onChange={(removedId?: number) => {
+                  if (String(removedId) === filters.category) {
+                    setFilters({ ...filters, category: "" });
+                  }
+                  void categories.load();
+                }}
+              />
               <BudgetPanel
                 token={token}
                 year={year}
@@ -715,6 +729,7 @@ export function Finance({ token }: { token: string }) {
                 categories={categories.data || []}
                 budgets={budgets.data || []}
                 done={reload}
+                onNotice={setNotice}
               />
             </>
           )}
@@ -822,7 +837,78 @@ export function Finance({ token }: { token: string }) {
     </>
   );
 }
-function BudgetPanel({ token, year, month, categories, budgets, done }: any) {
+function CategoryPanel({ token, items, loading, error, onChange, onNotice }) {
+  const [busy, setBusy] = useState(false);
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const fields = new FormData(form);
+    const name = String(fields.get("name")).trim();
+    if (!name) {
+      onNotice({ text: "Escribe un nombre para la categoría.", error: true });
+      return;
+    }
+    setBusy(true);
+    try {
+      await api("/finance/categories", token, {
+        method: "POST",
+        body: JSON.stringify({ name, kind: fields.get("kind") }),
+      });
+      form.reset();
+      onNotice({ text: "Categoría añadida." });
+      onChange();
+    } catch (failure) {
+      onNotice({ text: failure.message, error: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(category) {
+    if (!confirm(`¿Eliminar la categoría «${category.name}»?`)) return;
+    setBusy(true);
+    try {
+      await api(`/finance/categories/${category.id}`, token, { method: "DELETE" });
+      onNotice({ text: "Categoría eliminada." });
+      onChange(category.id);
+    } catch (failure) {
+      onNotice({ text: failure.message, error: true });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section>
+      <h3>Gestionar categorías</h3>
+      <form className="budget-form" onSubmit={save}>
+        <Field label="Nombre">
+          <input name="name" required maxLength={100} />
+        </Field>
+        <Field label="Tipo">
+          <select name="kind">
+            <option value="expense">Gasto</option>
+            <option value="income">Ingreso</option>
+          </select>
+        </Field>
+        <button disabled={busy}>Añadir categoría</button>
+      </form>
+      <State loading={loading} error={error} empty={!items.length}>
+        <ul className="list">
+          {items.map((category) => (
+            <li key={category.id}>
+              <span><b>{category.name}</b><small>{category.kind === "expense" ? "Gasto" : "Ingreso"}</small></span>
+              <button type="button" disabled={busy} onClick={() => void remove(category)}
+                aria-label={`Eliminar categoría ${category.name}`}>Eliminar</button>
+            </li>
+          ))}
+        </ul>
+      </State>
+    </section>
+  );
+}
+function BudgetPanel({ token, year, month, categories, budgets, done, onNotice }: any) {
   const [category, setCategory] = useState(""),
     [amount, setAmount] = useState("");
   return (
@@ -884,6 +970,16 @@ function BudgetPanel({ token, year, month, categories, budgets, done }: any) {
               </span>
               <progress max="100" value={Math.min(budget.progress_pct, 100)} />
               <small>{budget.progress_pct}% usado</small>
+              <button type="button" aria-label={`Eliminar presupuesto de ${budget.category}`} onClick={async () => {
+                if (!confirm(`¿Eliminar el presupuesto de «${budget.category}» para este mes?`)) return;
+                try {
+                  await api(`/finance/budgets/${budget.id}`, token, { method: "DELETE" });
+                  onNotice({ text: "Presupuesto eliminado." });
+                  done();
+                } catch (failure) {
+                  onNotice({ text: failure.message, error: true });
+                }
+              }}>Eliminar presupuesto</button>
             </div>
           ))
         ) : (

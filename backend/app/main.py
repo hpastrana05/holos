@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import and_, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import create_token, current_user, verify_password
@@ -174,7 +175,17 @@ def edit_category(item_id: int, data: CategoryIn, user: User = Depends(current_u
     for key, value in data.model_dump().items(): setattr(item, key, value)
     db.commit(); db.refresh(item); return item
 @app.delete("/finance/categories/{item_id}", status_code=204)
-def delete_category(item_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)): db.delete(household_item(Category, item_id, user, db)); db.commit()
+def delete_category(item_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    item = household_item(Category, item_id, user, db)
+    in_use = "La categoría está en uso. Cambia la categoría de sus movimientos y elimina sus presupuestos antes de borrarla."
+    if db.query(Transaction.id).filter_by(category_id=item.id).first() or db.query(CategoryBudget.id).filter_by(category_id=item.id).first():
+        raise HTTPException(409, in_use)
+    db.delete(item)
+    try:
+        db.commit()
+    except IntegrityError as error:
+        db.rollback()
+        raise HTTPException(409, in_use) from error
 
 @app.get("/finance/transactions", response_model=list[TransactionOut])
 def list_transactions(start: date | None = None, end: date | None = None, kind: TransactionType | None = None, category_id: int | None = None, limit: int | None = Query(None, ge=1, le=100), user: User = Depends(current_user), db: Session = Depends(get_db)):

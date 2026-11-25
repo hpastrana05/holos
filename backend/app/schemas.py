@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.models.models import MealSource, MealType, TransactionType, Visibility
 
@@ -14,7 +15,9 @@ class WeightEntryIn(BaseModel): date: date; weight_kg: float = Field(gt=20, lt=5
 class WeightEntryOut(WeightEntryIn, ORM): id: int; user_id: int
 class WeightGoalIn(BaseModel): start_weight_kg: float; target_weight_kg: float; start_date: date; target_date: date | None = None; weekly_rate_kg: float = Field(default=0.5, gt=0, le=1); mode: str = "lose"; active: bool = True
 class WeightGoalOut(WeightGoalIn, ORM): id: int; user_id: int
-class CategoryIn(BaseModel): name: str = Field(min_length=1, max_length=100); kind: TransactionType
+class CategoryIn(BaseModel):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+    kind: TransactionType
 class CategoryOut(CategoryIn, ORM): id: int; household_id: int
 class CategoryBudgetIn(BaseModel): category_id: int; year: int = Field(ge=2000, le=2100); month: int = Field(ge=1, le=12); amount: float = Field(gt=0)
 class CategoryBudgetOut(CategoryBudgetIn, ORM): id: int; household_id: int

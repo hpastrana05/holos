@@ -38,6 +38,10 @@ El backend aplica las migraciones al arrancar y prepara la cuenta inicial si hac
 | Google Calendar | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI`. Configura la URL HTTPS del callback `/api/calendar/callback` que usará el navegador. |
 | Telegram | `TELEGRAM_BOT_TOKEN`. Si falta o Telegram lo rechaza, el bot queda inactivo. |
 
+## Categorías de finanzas
+
+En **Finanzas → Categorías → Gestionar categorías** puedes añadir categorías de gasto o ingreso y eliminar las que no estén en uso. Las categorías son compartidas por el hogar. Para eliminar una categoría en uso, cambia la categoría de sus movimientos y elimina sus presupuestos desde el mes correspondiente. Las categorías iniciales se crean al preparar la cuenta inicial del hogar.
+
 ## Ajustes y usuarios
 
 Un administrador puede crear, editar y desactivar cuentas de su hogar en **Ajustes → Usuarios**. Cada cuenta tiene un correo o nombre de usuario, contraseña, rol, nombre visible, color y avatar. Puedes añadir un PIN de pantalla de 4 a 8 cifras. Desactivar la cuenta conserva sus datos y revoca su acceso. Debe quedar al menos un administrador activo.
