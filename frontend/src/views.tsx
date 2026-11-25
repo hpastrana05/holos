@@ -71,10 +71,10 @@ export function Dashboard({ token }: { token: string }) {
         <div className="cards">
           <article>
             <label>Peso actual</label>
-            <b>{health.data?.current_weight_kg ?? "—"} kg</b>
+            <b>{formatWeight(health.data?.current_weight_kg)} kg</b>
             <small>
-              Objetivo: {health.data?.target_weight_kg ?? "—"} kg · Restan{" "}
-              {health.data?.remaining_kg ?? "—"} kg
+              Objetivo: {formatWeight(health.data?.target_weight_kg)} kg · Restan{" "}
+              {formatWeight(health.data?.remaining_kg)} kg
             </small>
           </article>
           <article>
@@ -98,8 +98,8 @@ export function Dashboard({ token }: { token: string }) {
             <LineChart data={health.data?.entries || []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="date" tickFormatter={shortDate} />
-              <YAxis domain={["auto", "auto"]} unit=" kg" />
-              <Tooltip labelFormatter={shortDate} />
+              <YAxis domain={["auto", "auto"]} unit=" kg" tickFormatter={formatWeight} />
+              <Tooltip labelFormatter={shortDate} formatter={(value: number) => formatWeight(value)} />
               <Line
               isAnimationActive={false}
                 type="monotone"
