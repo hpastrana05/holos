@@ -3,12 +3,13 @@ from datetime import date
 from time import time
 
 import httpx
-from app.models.models import AgentAction, User, WeightEntry
+from app.models.models import AgentAction, Meal, User, WeightEntry
 from app.services.llm import (
     LLMQuotaExceeded,
     LLMResponse,
     LLMUnavailable,
     LLMUnsupportedMedia,
+    Attachment,
     ToolCall,
 )
 from app.services.telegram_api import TelegramAPI
@@ -154,6 +155,57 @@ def test_invalid_meal_call_is_retried_before_confirmation(db):
     assert "Consomé y merluza" in outbound[-1]["text"]
     assert "/confirmar " in outbound[-1]["text"]
     assert db.query(AgentAction).count() == 0
+
+
+def test_photo_album_is_one_request_and_one_confirmation(db, monkeypatch):
+    user = db.query(User).first()
+    user.telegram_id = 101
+    db.commit()
+    call = ToolCall("add_meal", {"name": "Consomé y merluza", "kcal": 345,
+                    "protein_g": 41, "carbs_g": 2.5, "fat_g": 18,
+                    "meal_type": "lunch", "eaten_at": "2026-11-25T14:00:00"})
+    bot, outbound = make_bot(db)
+    monkeypatch.setattr(bot, "attachment", lambda message: Attachment(str(message["message_id"]).encode(), "image/jpeg"))
+
+    class AlbumLLM:
+        def __init__(self):
+            self.requests = []
+
+        def complete(self, **kwargs):
+            self.requests.append(kwargs)
+            return LLMResponse("", [call])
+
+    bot.llm = AlbumLLM()
+    for message_id in (1, 2):
+        bot.accept({"message": {"chat": {"type": "private", "id": 101}, "from": {"id": 101},
+                    "message_id": message_id, "media_group_id": "album", "photo": [{}],
+                    "caption": "Registra el menú" if message_id == 1 else ""}}, now=message_id)
+    bot.flush_albums(now=3)
+    assert not outbound
+    bot.flush_albums(now=4)
+    assert len(bot.llm.requests) == 1
+    assert len(bot.llm.requests[0]["attachments"]) == 2
+    assert "Registra el menú" in bot.llm.requests[0]["messages"][-1]["content"]
+    assert len(outbound) == 1 and "/confirmar " in outbound[0]["text"]
+    assert db.query(AgentAction).count() == 0
+    confirmation = "/confirmar " + outbound[0]["text"].split("/confirmar ", 1)[1].split()[0]
+    receive(bot, 101, confirmation, message_id=3)
+    assert db.query(Meal).filter_by(user_id=user.id, name="Consomé y merluza").count() == 1
+
+
+def test_album_quota_error_does_not_register_a_meal(db, monkeypatch):
+    user = db.query(User).first()
+    user.telegram_id = 101
+    db.commit()
+    bot, outbound = make_bot(db, LLMQuotaExceeded("Se ha alcanzado la cuota."))
+    monkeypatch.setattr(bot, "attachment", lambda _: Attachment(b"photo", "image/jpeg"))
+    for message_id in (1, 2):
+        bot.accept({"message": {"chat": {"type": "private", "id": 101}, "from": {"id": 101},
+                    "message_id": message_id, "media_group_id": "album", "photo": [{}]}}, now=0)
+    bot.flush_albums(now=2)
+    assert len(outbound) == 1 and "cuota" in outbound[0]["text"]
+    assert db.query(Meal).count() == 0
+    assert bot.conversations[101].pending is None
 
 
 def test_gemini_and_telegram_failures_are_user_readable(db):

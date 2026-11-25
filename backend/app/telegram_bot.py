@@ -34,6 +34,7 @@ from app.services.telegram_link import clear_expired, redeem_code, unlink
 logger = logging.getLogger(__name__)
 HELP = "Envía texto, una nota de voz o una foto de comida. /resumen muestra tu resumen y /desvincular desconecta Telegram."
 CONFIRM_TTL = 300
+ALBUM_WAIT = 2
 
 
 @dataclass
@@ -51,6 +52,37 @@ class TelegramBot:
         self.sessions = sessions
         self.failures = deque()
         self.conversations: dict[int, Conversation] = {}
+        self.albums: dict[tuple[int, str], tuple[float, list[dict]]] = {}
+
+    def accept(self, update_data, now=None):
+        """Collect consecutive Telegram album items before making one model request."""
+        now = monotonic() if now is None else now
+        message = update_data.get("message", {})
+        chat = message.get("chat", {})
+        sender = message.get("from", {})
+        chat_id = chat.get("id")
+        if chat.get("type") != "private" or not chat_id or sender.get("id") != chat_id or sender.get("is_bot"):
+            return
+        group = message.get("media_group_id")
+        if group and message.get("photo"):
+            key = (chat_id, group)
+            _, items = self.albums.get(key, (now, []))
+            if not any(item["message_id"] == message["message_id"] for item in items):
+                items.append(message)
+            self.albums[key] = (now + ALBUM_WAIT, items)
+        else:
+            self.flush_albums(now, chat_id=chat_id)
+            self.handle(update_data)
+
+    def flush_albums(self, now=None, chat_id=None):
+        now = monotonic() if now is None else now
+        for key, (deadline, items) in list(self.albums.items()):
+            if (chat_id is not None and key[0] == chat_id) or (chat_id is None and deadline <= now):
+                del self.albums[key]
+                items.sort(key=lambda item: item["message_id"])
+                message = {**items[-1], "album_items": items,
+                           "caption": " ".join(item.get("caption", "") for item in items).strip()}
+                self.handle({"message": message})
 
     def prune(self, now):
         while self.failures and self.failures[0][0] <= now - 600:
@@ -199,7 +231,8 @@ class TelegramBot:
             return HELP
         conversation.pending = None
         try:
-            attachment = self.attachment(message)
+            attachments = [self.attachment(item) for item in message.get("album_items", [message])]
+            attachments = [item for item in attachments if item is not None]
         except MediaTooLarge:
             return "El archivo supera el límite de tamaño. Envía una nota de voz o foto más pequeña."
         except TelegramError:
@@ -207,15 +240,15 @@ class TelegramBot:
         except (HTTPException, Image.DecompressionBombError, UnidentifiedImageError, OSError) as error:
             return error.detail if isinstance(error, HTTPException) else "No se ha podido leer la foto."
 
-        if attachment:
+        if attachments:
             caption = message.get("caption", "")
-            prompt = ("Atiende la petición de esta nota de voz." if attachment.mime_type.startswith("audio/")
-                      else "Estima la comida de esta foto con kcal y macronutrientes. Si no reconoces comida, indícalo.")
+            prompt = ("Atiende la petición de esta nota de voz." if attachments[0].mime_type.startswith("audio/")
+                      else "Estima en conjunto la comida de las fotos con kcal y macronutrientes. Si no reconoces comida, indícalo.")
             raw = f"{prompt} {caption}".strip()
         if not raw:
             return HELP
         data = AgentChatIn(message=raw[:4000], history=conversation.history)
-        result = run_chat(data, user, db, self.llm, attachment=attachment,
+        result = run_chat(data, user, db, self.llm, attachments=attachments,
                           gate=lambda call: self.confirmation(call, user, db, conversation, now))
         if conversation.pending is None:
             conversation.history = (conversation.history + [
@@ -253,12 +286,13 @@ def main():
                     with SessionLocal() as db:
                         clear_expired(db, int(time()))
                     next_cleanup = monotonic() + 60
-                updates = api.call("getUpdates", offset=offset, timeout=30, limit=20,
+                bot.flush_albums()
+                updates = api.call("getUpdates", offset=offset, timeout=1 if bot.albums else 30, limit=20,
                                    allowed_updates=["message"])
                 for item in updates:
                     offset = item["update_id"] + 1
                     try:
-                        bot.handle(item)
+                        bot.accept(item)
                     except TelegramError as error:
                         if error.status == 401:
                             raise

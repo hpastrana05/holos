@@ -232,7 +232,7 @@ def run_tool(call: ToolCall, user: User, db: Session, *, confirmed: bool = False
 def run_chat(
     data: AgentChatIn, user: User, db: Session, llm: LLMProvider, *,
     gate: Callable[[ToolCall], str | None] | None = None,
-    attachment: Attachment | None = None,
+    attachments: list[Attachment] | None = None,
 ) -> AgentChatOut:
     categories = [f"{item.name} ({item.kind.value})" for item in db.query(Category).filter_by(household_id=user.household_id)]
     home_entities = db.query(HomeEntity).filter_by(household_id=user.household_id).all()
@@ -248,11 +248,13 @@ def run_chat(
         system += (" En Telegram, llama a la herramienta cuando tengas todos los datos. El servidor "
                    "pedirá y comprobará la confirmación para comidas, eventos y controles sensibles. "
                    "En este canal solo la confirmación del servidor habilita la acción. "
+                   "No pidas tú confirmación para registrar una comida: cuando tengas los datos llama a add_meal. "
+                   "Si faltan datos imprescindibles, pregunta por ellos sin afirmar que has registrado nada. "
                    "Deja el texto vacío cuando llames a una herramienta y nunca anticipes su resultado.")
     messages = [{"role": message.role, "content": message.content} for message in data.history[-12:]] + [{"role": "user", "content": data.message}]
     sensitive_confirmed = bool(re.search(r"\b(s[ií]|confirmo|confirmado|adelante|autoriza(?:do)?|procede)\b", data.message, re.IGNORECASE))
     try:
-        options = {"attachment": attachment} if attachment is not None else {}
+        options = {"attachments": attachments} if attachments else {}
         reply = llm.complete(system=system, messages=messages, tools=TOOLS, **options)
         if gate is not None:
             invalid_meal = False

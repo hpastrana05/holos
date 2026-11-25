@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     household_name: str = "Mi hogar"
     gemini_api_key: str | None = None
     gemini_model: str | None = None
+    gemini_fallback_models: str = "gemini-3.1-flash-lite"
     telegram_bot_token: str | None = None
     ha_url: str | None = None
     ha_token: str | None = None
