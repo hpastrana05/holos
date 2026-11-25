@@ -16,6 +16,10 @@ import {
 } from "recharts";
 import { api, euros, Field, monthValue, shortDate, today, type Notice } from "./shared";
 
+const weightNumber = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
+const formatWeight = (value: number | null | undefined) =>
+  value == null ? "—" : weightNumber.format(value);
+
 const State = ({
   loading,
   error,
@@ -262,12 +266,12 @@ export function Health({ token }: { token: string }) {
             <label>Progreso</label>
             <b>{summary.data.progress_pct ?? "—"}%</b>
             <small>
-              {summary.data.remaining_kg ?? "—"} kg hasta el objetivo
+              {formatWeight(summary.data.remaining_kg)} kg hasta el objetivo
             </small>
           </article>
           <article>
             <label>Tendencia</label>
-            <b>{summary.data.trend_kg ?? "—"} kg</b>
+            <b>{formatWeight(summary.data.trend_kg)} kg</b>
             <small>
               Llegada estimada: {shortDate(summary.data.estimated_goal_date)}
             </small>
@@ -282,8 +286,8 @@ export function Health({ token }: { token: string }) {
           >
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="date" tickFormatter={shortDate} />
-            <YAxis domain={["auto", "auto"]} unit=" kg" />
-            <Tooltip labelFormatter={shortDate} />
+            <YAxis domain={["auto", "auto"]} unit=" kg" tickFormatter={formatWeight} />
+            <Tooltip labelFormatter={shortDate} formatter={(value: number) => formatWeight(value)} />
             <Legend />
             <Line
               isAnimationActive={false}
@@ -369,7 +373,7 @@ export function Health({ token }: { token: string }) {
                 .map((weight: any) => (
                   <li key={weight.id}>
                     <span>
-                      <b>{weight.weight_kg} kg</b>
+                      <b>{formatWeight(weight.weight_kg)} kg</b>
                       <small>
                         {shortDate(weight.date)}
                         {weight.notes ? ` · ${weight.notes}` : ""}
