@@ -1,37 +1,42 @@
-# Holos — fase 5
+# Holos
 
-Dashboard doméstico pensado para una Raspberry Pi 4B (arm64). Incluye salud, peso, objetivos, finanzas, autenticación JWT y aislamiento multiusuario.
+Holos es un panel privado para gestionar el día a día de un hogar desde el móvil, la tablet o el ordenador. Está pensado para instalarse en un servidor casero, como una Raspberry Pi 4B, junto a Home Assistant y Tailscale.
 
-## Estado y funciones
+> **Desarrollado con ayuda de IA.** Holos guarda los registros personales en la base SQLite de tu propio servidor. Publicar el código en GitHub no publica la base de datos, las copias de seguridad ni las credenciales de tu instalación. El acceso se protege con cuentas por usuario y está pensado para una red privada. Las integraciones opcionales procesan los datos necesarios para cada función.
 
-- Launcher oscuro «Tu Holos», con una columna en móvil, dos en tablet y cuadrículas más amplias con barra lateral a partir de 1024 px.
-- Pantalla fija de solo lectura y PWA instalable en Android.
-- Chat con Gemini por texto y voz, con herramientas limitadas y auditadas.
-- Nutrición: estimación orientativa por texto o foto, registro privado de comidas, macros y evolución de siete días.
-- Casa: integración con Home Assistant, entidades autorizadas por hogar, control por estancia y lectura de consumo.
-- Calendario: Google Calendar personal mediante OAuth 2.0, agenda y creación de eventos.
+## Qué puedes hacer
 
-El módulo **Chat** está disponible desde el launcher y directamente en `/chat`; el botón flotante conserva la misma conversación mientras navegas. Los mensajes y el historial breve se mantienen solo en el navegador durante la sesión.
+- **Salud y nutrición.** Registra tu peso, sigue tu objetivo y lleva un diario de comidas y macros. Gemini puede estimar los nutrientes de una comida descrita por texto o fotografiada.
+- **Finanzas.** Registra ingresos y gastos, analiza movimientos por categoría y configura presupuestos mensuales. Puedes registrar movimientos personales o compartirlos con el hogar.
+- **Casa.** Consulta estados y consumo y controla los dispositivos de Home Assistant que hayas autorizado.
+- **Calendario.** Conecta tu cuenta de Google Calendar para consultar la agenda y crear eventos.
+- **Chat y Telegram.** Consulta el panel y registra datos mediante el asistente, desde la web o desde un chat privado con el bot. Telegram es opcional.
+- **Pantalla fija.** Deja una tablet o un móvil en casa mostrando la hora, el tiempo y un resumen de solo lectura. Holos se puede instalar como PWA en Android.
 
-- Panel con evolución de peso, línea de objetivo, kcal diarias y últimos movimientos.
-- Finanzas con ingresos/gastos de seis meses, filtros, análisis por categoría y presupuestos mensuales.
-- Categorías iniciales idempotentes: Supermercado, Nómina, Transporte, Ocio, Salud, Hogar y Otros.
-- Edición y borrado de pesos y movimientos desde la PWA.
+El backend usa FastAPI, SQLAlchemy, Alembic y SQLite en modo WAL. La interfaz usa React, Vite y Recharts. Docker Compose ejecuta el frontend, la API y el bot como servicios separados.
 
 ## Arranque en Raspberry Pi
 
-1. Instala Docker Engine y el complemento Docker Compose.
-2. Copia `.env.example` a `.env` y asigna valores seguros a `HOLOS_SECRET_KEY` y `HOLOS_ADMIN_PASSWORD`.
-   Para activar el chat, añade `GEMINI_API_KEY` y `GEMINI_MODEL`. Para Casa, añade `HA_URL` (la URL interna de Home Assistant), `HA_TOKEN` (token de larga duración) y, opcionalmente, `HA_TIMEOUT_SECONDS` (8 por defecto). Para Calendario, configura `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI` con la URL pública HTTPS de `/api/calendar/callback`. Elige un modelo que tenga nivel gratuito en [Google AI Studio](https://aistudio.google.com/); Holos no fija un modelo por defecto.
-3. Arranca el servicio:
+1. Instala Docker Engine y el complemento Docker Compose en tu Raspberry Pi o servidor arm64.
+2. Copia `.env.example` a `.env`. Antes del primer arranque, elige un usuario en `HOLOS_ADMIN_EMAIL`, una contraseña fuerte en `HOLOS_ADMIN_PASSWORD` y una clave aleatoria larga en `HOLOS_SECRET_KEY`. Puedes generar la clave con `openssl rand -hex 32`. Conserva `DATABASE_URL=sqlite:////data/holos.db` para que la API y el bot compartan la misma base persistente.
+3. Arranca Holos:
 
    ```sh
    docker compose up -d --build
    ```
 
-4. Abre `http://IP_DE_LA_RASPBERRY:8080`. El usuario inicial es `HOLOS_ADMIN_EMAIL`. El servidor también acepta `SECRET_KEY`, que tiene prioridad sobre `HOLOS_SECRET_KEY` si se configuran ambos.
+4. Abre Holos desde tu red privada. Para acceder desde fuera de casa y usar el micrófono, sirve el frontend por HTTPS con Tailscale Serve. Docker Compose publica los puertos 8080 y 8000 en el servidor. Mantén ambos fuera de Internet y restringe el acceso a los dispositivos de confianza mediante el cortafuegos y Tailscale.
 
-Las imágenes parten de `python:3.12-slim`, Node y Nginx, disponibles para arm64. La base de datos queda en el volumen Docker `holos-data`, con SQLite en modo WAL. En cada inicio el backend aplica las migraciones y ejecuta un seed idempotente del hogar y administrador.
+El backend aplica las migraciones al arrancar y prepara la cuenta inicial si hace falta. SQLite se guarda en el volumen `holos-data`. Si actualizas una instalación que usaba `HOLOS_DATABASE_URL`, comprueba dónde está la base antigua y haz una copia antes de recrear el backend.
+
+### Integraciones opcionales
+
+| Integración | Variables en `.env` |
+| --- | --- |
+| Gemini | `GEMINI_API_KEY` y `GEMINI_MODEL`. Elige un modelo en [Google AI Studio](https://aistudio.google.com/). |
+| Home Assistant | `HA_URL` interna, `HA_TOKEN` y, opcionalmente, `HA_TIMEOUT_SECONDS` (8 por defecto). |
+| Google Calendar | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` y `GOOGLE_REDIRECT_URI`. Configura la URL HTTPS del callback `/api/calendar/callback` que usará el navegador. |
+| Telegram | `TELEGRAM_BOT_TOKEN`. Si falta o Telegram lo rechaza, el bot queda inactivo. |
 
 ## Ajustes y usuarios
 
@@ -91,15 +96,13 @@ docker compose exec -T backend python -m app.backup
 
 Crea y conserva el directorio de backups en un volumen distinto o sincronízalo fuera de la SD. No se guardan imágenes ni se incluyen secretos en el repositorio.
 
-## Alcance de datos
+## Privacidad y datos personales
 
-- Los datos de salud y peso siempre se filtran por `user_id`.
-- Las categorías pertenecen a `household_id`.
-- Las transacciones personales solo las ve su creador; las compartidas las ven los miembros del mismo hogar.
-- La gestión de usuarios y los cambios de ubicación requieren un administrador del hogar.
-- Las entidades de Casa pertenecen a `household_id`; las altas, bajas y cambios de lista blanca requieren un administrador. El agente únicamente puede consultar o controlar entidades permitidas y audita cada herramienta en `agent_actions`.
-- El chat solo puede crear gastos, ingresos y pesos, o consultar datos. Cada uso de herramienta registra usuario, herramienta, argumentos y resultado en `agent_actions`; no se guarda el texto completo de la conversación.
-- Las fotos de comida se reducen en memoria antes de enviarse a Gemini y se descartan al terminar la petición; no se guardan en la base de datos ni en logs. Las estimaciones no sustituyen consejo sanitario profesional.
+- **En tu servidor.** Los registros de salud y nutrición y los movimientos personales se filtran por usuario. Los movimientos compartidos, las categorías y los dispositivos autorizados pertenecen al hogar. Las contraseñas se guardan como hashes y los tokens de actualización de Google Calendar se guardan cifrados.
+- **En una pantalla compartida.** Asigna un PIN a cada perfil que tenga datos personales. Cualquiera que pueda abrir Holos puede ver el selector de perfiles y consultar el resumen de los perfiles que carecen de PIN.
+- **Con Gemini.** Al usar el asistente, Gemini recibe los mensajes y el contexto que necesita para responder. Al analizar fotos de comida o notas de voz compatibles, Holos prepara los archivos en memoria y los descarta al terminar. El chat web registra las herramientas ejecutadas, sus argumentos y el resultado en `agent_actions`. El bot registra la herramienta y el resultado de ejecución sin guardar el contenido del mensaje en esa tabla.
+- **Con otros servicios.** Google procesa las consultas y cambios del calendario. Telegram recibe los mensajes y las respuestas que intercambias con el bot, incluido el resumen si lo solicitas. Open-Meteo recibe la ubicación configurada para consultar el tiempo. Home Assistant recibe las consultas y órdenes de los dispositivos autorizados.
+- **Al compartir el código.** Mantén `.env`, el volumen de SQLite, los respaldos y cualquier exportación de datos fuera del repositorio. Restringe también quién puede leerlos en el servidor.
 
 ## Bot de Telegram
 
