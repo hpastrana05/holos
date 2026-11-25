@@ -3,7 +3,7 @@ from datetime import date
 from time import time
 
 import httpx
-from app.models.models import AgentAction, Meal, User, WeightEntry
+from app.models.models import AgentAction, HomeEntity, Meal, User, WeightEntry
 from app.services.llm import (
     LLMQuotaExceeded,
     LLMResponse,
@@ -122,12 +122,33 @@ def test_calendar_confirmation_is_bound_to_one_chat_and_action(db, monkeypatch):
     monkeypatch.setattr("app.telegram_bot.run_tool", execute)
     receive(bot, 101, "Sí, confirmado")
     assert not executed and "Cita privada" in outbound[-1]["text"]
-    confirmation = "/confirmar " + outbound[-1]["text"].split("/confirmar ", 1)[1].split()[0]
+    confirmation = "/confirmar evento"
+    assert confirmation in outbound[-1]["text"]
     receive(bot, 202, confirmation)
     assert not executed
-    receive(bot, 101, confirmation, message_id=2)
+    receive(bot, 101, "/confirmar comida", message_id=2)
+    assert not executed
     receive(bot, 101, confirmation, message_id=3)
+    receive(bot, 101, confirmation, message_id=4)
     assert executed == [(call, first.id, {"confirmed": True, "private": True})]
+
+
+def test_sensitive_device_confirmation_uses_device_command(db, monkeypatch):
+    user = db.query(User).first()
+    user.telegram_id = 101
+    db.add(HomeEntity(household_id=user.household_id, entity_id="switch.puerta",
+                      display_name="Puerta", domain="switch", sensitive=True))
+    db.commit()
+    call = ToolCall("control_device", {"entity_id": "switch.puerta", "action": "turn_on"})
+    bot, outbound = make_bot(db, LLMResponse("", [call]))
+    executed = []
+    monkeypatch.setattr("app.telegram_bot.run_tool", lambda call, user, db, **kwargs: executed.append(call) or "Hecho")
+    receive(bot, 101, "Abre la puerta")
+    assert "/confirmar dispositivo" in outbound[-1]["text"]
+    receive(bot, 101, "/confirmar evento", message_id=2)
+    assert not executed
+    receive(bot, 101, "/confirmar dispositivo", message_id=3)
+    assert len(executed) == 1 and executed[0].name == "control_device"
 
 
 def test_invalid_meal_call_is_retried_before_confirmation(db):
@@ -153,7 +174,7 @@ def test_invalid_meal_call_is_retried_before_confirmation(db):
     assert len(bot.llm.systems) == 2
     assert "datos inválidos" in bot.llm.systems[1]
     assert "Consomé y merluza" in outbound[-1]["text"]
-    assert "/confirmar " in outbound[-1]["text"]
+    assert "/confirmar comida" in outbound[-1]["text"]
     assert db.query(AgentAction).count() == 0
 
 
@@ -186,10 +207,13 @@ def test_photo_album_is_one_request_and_one_confirmation(db, monkeypatch):
     assert len(bot.llm.requests) == 1
     assert len(bot.llm.requests[0]["attachments"]) == 2
     assert "Registra el menú" in bot.llm.requests[0]["messages"][-1]["content"]
-    assert len(outbound) == 1 and "/confirmar " in outbound[0]["text"]
+    assert len(outbound) == 1 and "/confirmar comida" in outbound[0]["text"]
     assert db.query(AgentAction).count() == 0
-    confirmation = "/confirmar " + outbound[0]["text"].split("/confirmar ", 1)[1].split()[0]
-    receive(bot, 101, confirmation, message_id=3)
+    receive(bot, 101, "/confirmar", message_id=3)
+    assert "/confirmar comida" in outbound[-1]["text"]
+    assert db.query(Meal).count() == 0
+    receive(bot, 101, "/confirmar comida", message_id=4)
+    receive(bot, 101, "/confirmar comida", message_id=5)
     assert db.query(Meal).filter_by(user_id=user.id, name="Consomé y merluza").count() == 1
 
 

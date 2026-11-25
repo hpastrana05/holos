@@ -4,7 +4,6 @@ import re
 from collections import deque
 from dataclasses import dataclass, field
 from io import BytesIO
-from secrets import token_hex
 from time import monotonic, sleep, time
 
 import httpx
@@ -159,7 +158,8 @@ class TelegramBot:
                 return ("No he podido preparar el registro de la comida. Indica de nuevo el nombre, "
                         "las kcal, los macronutrientes, el tipo de comida y la fecha y hora.")
             return "Necesito datos válidos antes de pedirte confirmación."
-        command = f"/confirmar {token_hex(6)}"
+        kind = {"add_meal": "comida", "add_calendar_event": "evento", "control_device": "dispositivo"}[call.name]
+        command = f"/confirmar {kind}"
         conversation.pending = (command, call, now + CONFIRM_TTL)
         return f"{details}\n\nPara confirmar, envía {command} en los próximos 5 minutos. Envía /cancelar para cancelar."
 
@@ -218,6 +218,8 @@ class TelegramBot:
         conversation.expires = now + 900
         if command == "/confirmar":
             pending = conversation.pending
+            if pending and pending[2] > now and raw.lower() == "/confirmar":
+                return f"Para confirmar esta acción, envía {pending[0]}."
             if not pending or pending[2] <= now or raw != pending[0]:
                 return "No hay una confirmación válida para ese código."
             conversation.pending = None

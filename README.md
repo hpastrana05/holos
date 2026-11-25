@@ -64,7 +64,7 @@ Configura solo las integraciones que quieras usar.
 2. Abre **Ajustes → Telegram → Vincular Telegram** y envía al bot el comando que muestra Holos. El código sirve una sola vez y caduca en 10 minutos.
 3. Usa `/ayuda` para consultar los comandos, `/resumen` para ver finanzas, peso y nutrición, o `/desvincular` para retirar el acceso. También puedes desvincularlo desde Ajustes.
 
-El bot comparte el modelo Gemini del panel. Acepta fotos de comida y notas de voz compatibles de hasta 4 MiB por archivo. Las fotos enviadas juntas como álbum se analizan en una sola petición y se procesan solo en memoria. Para registrar la comida hay que enviar el comando `/confirmar` con el código que muestra el bot; las confirmaciones de comidas, acciones sensibles y eventos caducan en cinco minutos. Si Gemini agota la cuota o no está disponible, vuelve a enviar el álbum más tarde.
+El bot comparte el modelo Gemini del panel. Acepta fotos de comida y notas de voz compatibles de hasta 4 MiB por archivo. Las fotos enviadas juntas como álbum se analizan en una sola petición y se procesan solo en memoria. Para confirmar una acción pendiente envía `/confirmar comida`, `/confirmar evento` o `/confirmar dispositivo`, según corresponda. Las confirmaciones caducan en cinco minutos. Si Gemini agota la cuota o no está disponible, vuelve a enviar el álbum más tarde.
 
 Ante cuota o indisponibilidad, Holos reintenta y pasa a los modelos de respaldo configurados, tanto en el chat como en el análisis de comidas. Los límites pueden ser compartidos entre modelos y la disponibilidad y el coste dependen de la cuenta de Google. Configura solo modelos compatibles con las fotos, audio y herramientas que uses.
 
