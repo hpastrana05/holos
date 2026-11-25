@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, StringConstraints
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.security import current_user, hash_password
 from app.db.session import get_db
 from app.models.models import Household, Role, User
+from app.services.telegram_link import CODE_TTL, issue_code, unlink
 
 router = APIRouter(prefix="/settings")
 Db = Annotated[Session, Depends(get_db)]
@@ -210,3 +211,22 @@ def set_weather_location(data: WeatherLocation, user: Admin, db: Db):
     household.weather_longitude = data.longitude
     db.commit()
     return data
+
+
+@router.get("/telegram")
+def telegram_status(user: Account):
+    return {"linked": user.telegram_id is not None}
+
+
+@router.post("/telegram/code")
+def telegram_code(user: Account, db: Db, response: Response):
+    code = issue_code(db, user.id)
+    if code is None:
+        raise HTTPException(409, "Desvincula primero la cuenta de Telegram")
+    response.headers["Cache-Control"] = "no-store"
+    return {"code": code, "expires_in": CODE_TTL}
+
+
+@router.delete("/telegram", status_code=204)
+def unlink_telegram(user: Account, db: Db):
+    unlink(db, user.id)

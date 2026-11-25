@@ -13,9 +13,10 @@ def test_calendar_is_private_to_user(client, db, monkeypatch):
     connect(db)
     from app import calendar_routes
     seen = []
-    def events(_db, credential, _start, _end, _key):
+    def events(_db, credential, _start, _end, _key, _calendars):
         seen.append(credential.user_id); return [{"id": "a", "title": "Privado", "start": "2026-01-01T10:00:00+01:00", "end": None, "all_day": False}]
     monkeypatch.setattr(calendar_routes, "cached_events", events)
+    monkeypatch.setattr(calendar_routes, "google_calendars", lambda *_: [])
     admin = token(client); member = token(client, "member@test.local")
     assert client.get("/calendar/status", headers=admin).json()["connected"]
     assert not client.get("/calendar/status", headers=member).json()["connected"]

@@ -100,3 +100,12 @@ Crea y conserva el directorio de backups en un volumen distinto o sincronízalo 
 - Las entidades de Casa pertenecen a `household_id`; las altas, bajas y cambios de lista blanca requieren un administrador. El agente únicamente puede consultar o controlar entidades permitidas y audita cada herramienta en `agent_actions`.
 - El chat solo puede crear gastos, ingresos y pesos, o consultar datos. Cada uso de herramienta registra usuario, herramienta, argumentos y resultado en `agent_actions`; no se guarda el texto completo de la conversación.
 - Las fotos de comida se reducen en memoria antes de enviarse a Gemini y se descartan al terminar la petición; no se guardan en la base de datos ni en logs. Las estimaciones no sustituyen consejo sanitario profesional.
+
+## Bot de Telegram
+
+1. Crea el bot con BotFather y configura `TELEGRAM_BOT_TOKEN` en `.env`. Si falta o Telegram lo rechaza, el servicio queda inactivo y deja un aviso en sus logs.
+2. Comprueba que ambos servicios usan la misma base persistente. La variable es `DATABASE_URL=sqlite:////data/holos.db`. Si un despliegue anterior solo definía `HOLOS_DATABASE_URL`, comprueba dónde está la base actual y migra los datos al volumen antes de recrear el API.
+3. Ejecuta `docker compose up -d --build`. El servicio `telegram` espera al API, usa long polling sin publicar puertos y tiene un límite de 256 MiB.
+4. En Holos, abre **Ajustes → Telegram → Vincular Telegram** y envía el comando mostrado al bot en un chat privado. El código caduca en 10 minutos y solo se puede usar una vez. Si agotas los intentos, espera 10 minutos. Usa `/resumen` para ver finanzas, peso y nutrición, `/ayuda` para ver los comandos y `/desvincular` para retirar el acceso. También se puede desvincular desde Ajustes.
+
+El bot comparte `GEMINI_API_KEY` y `GEMINI_MODEL` con Holos. Las notas de voz y las fotos de comida se procesan en memoria cuando el modelo admite el formato, con un máximo de 4 MiB por archivo. Holos conserva brevemente la conversación en memoria y registra el usuario, la herramienta y el resultado de ejecución en `agent_actions`. Las confirmaciones de comidas, eventos y controles sensibles caducan en cinco minutos y se aplican a la acción que muestra el bot.

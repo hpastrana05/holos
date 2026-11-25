@@ -13,8 +13,9 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Fase 2 hecha: chat con IA (pendiente: pulido visual y voz).
 - Fase 3 hecha: nutrición (foto, texto).
 - Fase 4 hecha: Casa (Home Assistant).
-- Fase 5 en curso: Google Calendar.
-- Siguientes: Telegram (opcional), reloj/Health Connect.
+- Fase 5 hecha: Google Calendar.
+- Fase 6 hecha: bot de Telegram.
+- Siguiente: reloj/Health Connect.
 - No implementes módulos de fases futuras sin que lo pida.
 
 ## Módulos
@@ -96,7 +97,8 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Herramientas actuales: add_expense, add_income, add_weight,
   get_finance_summary, get_budget_status, get_weight_status,
   get_today_weather, add_meal, get_nutrition_status, get_home_status,
-  control_device, get_energy_usage. Las nuevas fases añaden las suyas.
+  control_device, get_energy_usage, get_calendar_events y add_calendar_event
+  (con confirmación antes de crear). Las nuevas fases añaden las suyas.
 - El agente actúa siempre en nombre del usuario autenticado.
 - Si falta un dato o hay ambigüedad, pregunta antes de guardar.
 - Confirma siempre lo que ha guardado.
@@ -156,3 +158,10 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 - Cada usuario solo ve su calendario.
 - Herramientas del agente: get_calendar_events y add_calendar_event
   (con confirmación antes de crear).
+
+## Telegram
+- Servicio independiente con long polling y chats privados. Sin puertos publicados.
+- Vinculación en Ajustes con código de un solo uso, hasheado y válido durante 10 minutos.
+- Comandos: /start, /ayuda, /resumen y /desvincular.
+- Usa el agente con el usuario vinculado. Confirma comidas, acciones sensibles y eventos en el chat.
+- Fotos y notas de voz en memoria. La auditoría guarda usuario, herramienta y resultado sin contenido del chat.

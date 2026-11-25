@@ -3,6 +3,7 @@ import { AccountAvatar, avatars, type Account } from "./AccountAvatar";
 import { api, Field } from "./shared";
 import Home from "./Home";
 import Calendar from "./Calendar";
+import TelegramSettings from "./TelegramSettings";
 
 type Location = { name: string; latitude: number; longitude: number };
 
@@ -32,6 +33,7 @@ export default function Settings({ token }: { token: string }) {
         {account.role === "admin" && <UserSettings token={token} />}
         {account.role === "admin" && <Home token={token} settings />}
         <Calendar token={token} settings />
+        <TelegramSettings key={token} token={token} />
         <LocationSettings token={token} location={location} editable={account.role === "admin"} />
         <VoiceSettings />
       </div>

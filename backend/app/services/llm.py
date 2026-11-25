@@ -20,7 +20,17 @@ class LLMResponse:
     tool_calls: list[ToolCall]
 
 
+@dataclass(frozen=True)
+class Attachment:
+    data: bytes
+    mime_type: str
+
+
 class LLMUnavailable(Exception):
+    pass
+
+
+class LLMUnsupportedMedia(LLMUnavailable):
     pass
 
 
@@ -29,7 +39,7 @@ class LLMQuotaExceeded(LLMUnavailable):
 
 
 class LLMProvider(Protocol):
-    def complete(self, *, system: str, messages: list[dict], tools: list[dict]) -> LLMResponse: ...
+    def complete(self, *, system: str, messages: list[dict], tools: list[dict], attachment: Attachment | None = None) -> LLMResponse: ...
     def analyze_meal(self, *, text: str | None, image: bytes | None, mime_type: str | None) -> list[dict]: ...
 
 
@@ -40,7 +50,7 @@ class GeminiProvider:
         self.api_key = api_key if api_key is not None else settings.gemini_api_key
         self.model = model if model is not None else settings.gemini_model
 
-    def complete(self, *, system: str, messages: list[dict], tools: list[dict]) -> LLMResponse:
+    def complete(self, *, system: str, messages: list[dict], tools: list[dict], attachment: Attachment | None = None) -> LLMResponse:
         if not self.api_key or not self.model:
             raise LLMUnavailable("Configura GEMINI_API_KEY y GEMINI_MODEL para usar el chat.")
         try:
@@ -48,7 +58,9 @@ class GeminiProvider:
             from google.genai import types
         except ImportError as error:
             raise LLMUnavailable("El proveedor Gemini no está instalado en el servidor.") from error
-        contents = [{"role": item["role"], "parts": [{"text": item["content"]}]} for item in messages]
+        contents = [{"role": "model" if item["role"] == "assistant" else item["role"], "parts": [{"text": item["content"]}]} for item in messages]
+        if attachment:
+            contents[-1]["parts"].append({"inline_data": {"data": attachment.data, "mime_type": attachment.mime_type}})
         try:
             client = genai.Client(api_key=self.api_key)
             for attempt in range(3):
@@ -62,6 +74,9 @@ class GeminiProvider:
                     return LLMResponse(response.text or "", calls)
                 except Exception as error:
                     code = getattr(error, "status_code", None) or getattr(error, "code", None)
+                    if attachment and code in (400, 415, 422):
+                        kind = "esta nota de voz" if attachment.mime_type.startswith("audio/") else "esta foto"
+                        raise LLMUnsupportedMedia(f"El modelo Gemini configurado no admite {kind}.") from error
                     if code == 429:
                         if attempt == 2:
                             raise LLMQuotaExceeded("Se ha alcanzado temporalmente la cuota gratuita de Gemini.") from error

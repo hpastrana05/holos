@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import Callable
 from urllib.parse import quote
 from calendar import monthrange
 from datetime import date, datetime, timedelta
@@ -15,7 +16,7 @@ from app.db.session import get_db
 from app.models.models import AgentAction, CalendarCredential, Category, CategoryBudget, HomeEntity, Household, Meal, MealSource, MealType, Transaction, TransactionType, User, WeightEntry, WeightGoal
 from app.services.nutrition import kcal_target, macro_targets
 from app.schemas import AgentActionOut, AgentChatIn, AgentChatOut
-from app.services.llm import GeminiProvider, LLMProvider, LLMQuotaExceeded, LLMUnavailable, ToolCall
+from app.services.llm import Attachment, GeminiProvider, LLMProvider, LLMQuotaExceeded, LLMUnavailable, ToolCall
 from app.services.weather import WeatherUnavailable, fetch_forecast
 from app.settings_routes import WeatherLocation
 from app.home_routes import CONTROLLABLE_DOMAINS, serialize
@@ -195,11 +196,11 @@ def execute(call: ToolCall, user: User, db: Session, *, sensitive_confirmed: boo
     if call.name == "add_calendar_event":
         data = CalendarEventInput.model_validate(call.arguments)
         if not (data.confirmed and sensitive_confirmed): return "Muestra primero el evento y pide una confirmación explícita antes de crearlo."
-        if data.end <= data.start: raise ValueError("El fin debe ser posterior al inicio")
         item = calendar_credential(user, db)
         if not item: return "Google Calendar no está conectado para este usuario."
         start = data.start.replace(tzinfo=MADRID) if data.start.tzinfo is None else data.start.astimezone(MADRID)
         end = data.end.replace(tzinfo=MADRID) if data.end.tzinfo is None else data.end.astimezone(MADRID)
+        if end <= start: raise ValueError("El fin debe ser posterior al inicio")
         try:
             sources = google_calendars(db, item); active = {source["id"] for source in sources if source["selected"]}
             calendar_id = data.calendar_id or next((source["id"] for source in sources if source["id"] == "primary" and source["selected"]), next(iter(active), None))
@@ -212,30 +213,67 @@ def execute(call: ToolCall, user: User, db: Session, *, sensitive_confirmed: boo
 
 @router.post("/chat", response_model=AgentChatOut)
 def chat(data: AgentChatIn, user: User = Depends(current_user), db: Session = Depends(get_db), llm: LLMProvider = Depends(provider)):
+    return run_chat(data, user, db, llm)
+
+
+def run_tool(call: ToolCall, user: User, db: Session, *, confirmed: bool = False, private: bool = False) -> str:
+    result = execute(call, user, db, sensitive_confirmed=confirmed)
+    audit_result = result
+    if private:
+        # Tool responses can interpolate titles, names and other message content.
+        audit_result = "La herramienta devolvió una respuesta."
+        if call.name in {"add_expense", "add_income", "add_weight", "add_meal", "add_calendar_event", "control_device"}:
+            succeeded = result.startswith(("Registrado:", "Evento creado:", "Acción enviada:"))
+            audit_result = "Acción completada." if succeeded else "La herramienta no completó la acción."
+    action_log(user, call.name, {} if private else call.arguments, audit_result, db)
+    return result
+
+
+def run_chat(
+    data: AgentChatIn, user: User, db: Session, llm: LLMProvider, *,
+    gate: Callable[[ToolCall], str | None] | None = None,
+    attachment: Attachment | None = None,
+) -> AgentChatOut:
     categories = [f"{item.name} ({item.kind.value})" for item in db.query(Category).filter_by(household_id=user.household_id)]
     home_entities = db.query(HomeEntity).filter_by(household_id=user.household_id).all()
     system = (f"Eres Holos, asistente doméstico. Hoy es {date.today():%d/%m/%Y}. Responde en español, breve y directo. "
               f"Categorías del hogar: {', '.join(categories) or 'ninguna'}. Antes de crear un dato exige importe/peso, fecha y categoría inequívoca; si falta algo, pregunta y no llames herramientas. "
               f"Entidades de Casa permitidas: {', '.join(f'{item.display_name}={item.entity_id}' for item in home_entities) or 'ninguna'}. "
-              "Para add_meal, presenta siempre la estimación y pide una confirmación explícita antes de llamar la herramienta. Para control_device, pide confirmación explícita antes de actuar en una entidad marcada como sensible. Para add_calendar_event, muestra título, fecha, inicio y fin y pide confirmación explícita antes de crear. Solo usa las herramientas disponibles y no inventes resultados.")
+              "Solo usa las herramientas disponibles y no inventes resultados.")
+    if gate is None:
+        system += (" Para add_meal, presenta siempre la estimación y pide una confirmación explícita antes de llamar la herramienta. "
+                   "Para control_device, pide confirmación explícita antes de actuar en una entidad marcada como sensible. "
+                   "Para add_calendar_event, muestra título, fecha, inicio y fin y pide confirmación explícita antes de crear.")
+    else:
+        system += (" En Telegram, llama a la herramienta cuando tengas todos los datos. El servidor "
+                   "pedirá y comprobará la confirmación para comidas, eventos y controles sensibles. "
+                   "En este canal solo la confirmación del servidor habilita la acción. "
+                   "Deja el texto vacío cuando llames a una herramienta y nunca anticipes su resultado.")
     messages = [{"role": message.role, "content": message.content} for message in data.history[-12:]] + [{"role": "user", "content": data.message}]
     sensitive_confirmed = bool(re.search(r"\b(s[ií]|confirmo|confirmado|adelante|autoriza(?:do)?|procede)\b", data.message, re.IGNORECASE))
     try:
-        reply = llm.complete(system=system, messages=messages, tools=TOOLS)
+        options = {"attachment": attachment} if attachment is not None else {}
+        reply = llm.complete(system=system, messages=messages, tools=TOOLS, **options)
     except LLMQuotaExceeded as error:
         return AgentChatOut(response=str(error) + " El chat sigue disponible; vuelve a intentarlo más tarde.", actions=[])
     except LLMUnavailable as error:
         return AgentChatOut(response=str(error), actions=[])
     actions = []
     confirmations = []
-    for call in reply.tool_calls:
+    calls = reply.tool_calls
+    if gate is not None and calls:
+        for call in calls:
+            prompt = gate(call)
+            if prompt is not None:
+                return AgentChatOut(response=prompt, actions=[])
+    for call in calls:
         try:
-            result = execute(call, user, db, sensitive_confirmed=sensitive_confirmed)
-            action_log(user, call.name, call.arguments, result, db)
+            result = run_tool(call, user, db, confirmed=sensitive_confirmed and gate is None,
+                              private=gate is not None)
             actions.append(AgentActionOut(tool=call.name, result=result)); confirmations.append(result)
-        except (ValidationError, ValueError, TypeError) as error:
+        except (ValidationError, ValueError, TypeError):
             confirmations.append("Necesito datos válidos antes de registrarlo.")
-    response = reply.text.strip() or ""
+    response = "" if gate is not None and calls else reply.text.strip()
     if confirmations:
         response = (response + "\n\n" if response else "") + "\n".join(confirmations)
     return AgentChatOut(response=response or "¿En qué te ayudo?", actions=actions)

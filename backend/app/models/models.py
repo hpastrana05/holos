@@ -1,7 +1,7 @@
 import enum
 from typing import Optional
 from datetime import date, datetime
-from sqlalchemy import Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, Date, DateTime, Enum, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
@@ -30,6 +30,10 @@ class User(Base):
     avatar: Mapped[str] = mapped_column(String(16), default="initial")
     screen_pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     screen_version: Mapped[int] = mapped_column(Integer, default=0)
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, unique=True, index=True)
+    telegram_code_hash: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
+    telegram_last_message: Mapped[int | None] = mapped_column(BigInteger)
+    telegram_code_expires: Mapped[int | None] = mapped_column(Integer)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[Role] = mapped_column(Enum(Role), default=Role.member)
     household_id: Mapped[int] = mapped_column(ForeignKey("households.id"), index=True)

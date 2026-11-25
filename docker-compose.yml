@@ -8,6 +8,23 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  telegram:
+    build: ./backend
+    platform: linux/arm64
+    command: ["python", "-m", "app.telegram_bot"]
+    env_file: .env
+    volumes:
+      - holos-data:/data
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: 256m
+    restart: unless-stopped
   frontend:
     build: ./frontend
     platform: linux/arm64
