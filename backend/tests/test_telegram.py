@@ -267,3 +267,34 @@ def test_missing_or_rejected_token_leaves_worker_idle(monkeypatch):
     monkeypatch.setattr(telegram_bot.settings, "telegram_bot_token", "123:example")
     telegram_bot.main()
     assert notices[-1] == "Bot inactivo: Telegram rechazó TELEGRAM_BOT_TOKEN."
+
+
+def test_text_meal_estimation_uses_madrid_time_and_confirms(db):
+    from datetime import datetime
+    from app.services.calendar import MADRID
+    from app.models.models import Meal
+
+    user = db.query(User).first()
+    user.telegram_id = 101
+    db.commit()
+    bot, outbound = make_bot(db)
+
+    class MealLLM:
+        def complete(self, **kwargs):
+            return LLMResponse('', [ToolCall('add_meal', {'name': 'Ensalada y carcamusa', 'meal_type': 'dinner'})])
+
+        def analyze_meal(self, **kwargs):
+            return [
+                {'name': 'Ensalada', 'kcal': 300, 'protein_g': 25, 'carbs_g': 10, 'fat_g': 15, 'confidence': .8},
+                {'name': 'Carcamusa', 'kcal': 250, 'protein_g': 20, 'carbs_g': 8, 'fat_g': 12, 'confidence': .6},
+            ]
+
+    bot.llm = MealLLM()
+    receive(bot, 101, 'Para cenar ensalada 250 g y carcamusa 200 g')
+    assert '550 kcal' in outbound[-1]['text'] and 'Carcamusa: 250' in outbound[-1]['text']
+    assert 'Confianza: media' in outbound[-1]['text'] and '/confirmar comida' in outbound[-1]['text']
+    assert db.query(Meal).count() == 0
+    receive(bot, 101, '/confirmar comida', message_id=2)
+    meal = db.query(Meal).one()
+    assert abs((datetime.now(MADRID).replace(tzinfo=None) - meal.eaten_at).total_seconds()) < 60
+    assert meal.meal_type.value == 'dinner' and meal.source.value == 'text' and meal.confidence == .6

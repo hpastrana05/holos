@@ -150,13 +150,16 @@ class TelegramBot:
                 data = MealInput.model_validate(call.arguments)
                 details = (f"Registrar «{data.name}» ({data.meal_type.value}), {data.eaten_at:%d/%m/%Y a las %H:%M}\n"
                            f"{data.kcal:g} kcal · {data.protein_g:g} g de proteína · "
-                           f"{data.carbs_g:g} g de hidratos · {data.fat_g:g} g de grasa")
+                           f"{data.carbs_g:g} g de hidratos · {data.fat_g:g} g de grasa\n"
+                           f"Confianza: {'baja' if data.confidence < 0.4 else 'media' if data.confidence < 0.75 else 'alta'} · Origen: texto"
+                           + (f"\nDesglose: {data.description}" if data.description else ""))
+                call = ToolCall(call.name, data.model_dump(mode="json"))
             else:
                 return None
         except (ValidationError, ValueError, TypeError):
             if call.name == "add_meal":
                 return ("No he podido preparar el registro de la comida. Indica de nuevo el nombre, "
-                        "las kcal, los macronutrientes, el tipo de comida y la fecha y hora.")
+                        "y los alimentos o cantidades que recuerdes.")
             return "Necesito datos válidos antes de pedirte confirmación."
         kind = {"add_meal": "comida", "add_calendar_event": "evento", "control_device": "dispositivo"}[call.name]
         command = f"/confirmar {kind}"

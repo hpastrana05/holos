@@ -34,7 +34,7 @@ TOOLS = [
         {"name": "get_budget_status", "description": "Consulta presupuesto de una categoría o todas.", "parameters": {"type": "object", "properties": {"category": {"type": "string"}, "year": {"type": "integer"}, "month": {"type": "integer"}}}},
         {"name": "get_weight_status", "description": "Consulta peso, objetivo y tendencia.", "parameters": {"type": "object", "properties": {}}},
         {"name": "get_today_weather", "description": "Consulta el tiempo de hoy del hogar.", "parameters": {"type": "object", "properties": {}}},
-        {"name": "add_meal", "description": "Registra una comida solo después de que el usuario confirme explícitamente la estimación.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "carbs_g": {"type": "number"}, "fat_g": {"type": "number"}, "meal_type": {"type": "string", "enum": ["breakfast", "lunch", "dinner", "snack"], "description": "Desayuno, almuerzo/comida, cena o tentempié, respectivamente."}, "eaten_at": {"type": "string", "description": "Fecha y hora en formato ISO 8601, por ejemplo 2026-11-25T14:00:00."}}, "required": ["name", "kcal", "protein_g", "carbs_g", "fat_g", "meal_type", "eaten_at"]}},
+        {"name": "add_meal", "description": "Registra una comida solo después de que el usuario confirme explícitamente la estimación.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "carbs_g": {"type": "number"}, "fat_g": {"type": "number"}, "meal_type": {"type": "string", "enum": ["breakfast", "lunch", "dinner", "snack"], "description": "Desayuno, almuerzo/comida, cena o tentempié, respectivamente."}, "eaten_at": {"type": "string", "description": "Fecha y hora ISO 8601; omitir si no se indica."}, "confidence": {"type": "number", "description": "Confianza de 0 a 1."}, "description": {"type": "string", "description": "Desglose de platos y cantidades con sus estimaciones."}}, "required": ["name", "meal_type"]}},
         {"name": "get_nutrition_status", "description": "Consulta las kcal y macros de hoy frente al objetivo.", "parameters": {"type": "object", "properties": {}}},
         {"name": "get_home_status", "description": "Consulta el estado de los dispositivos de Casa permitidos en el hogar.", "parameters": {"type": "object", "properties": {}}},
         {"name": "get_energy_usage", "description": "Consulta el consumo de los sensores de energía permitidos.", "parameters": {"type": "object", "properties": {}}},
@@ -60,7 +60,9 @@ class WeightInput(BaseModel):
 class MealInput(BaseModel):
     name: str = Field(min_length=1, max_length=160); kcal: float = Field(ge=0, le=10000)
     protein_g: float = Field(ge=0, le=1000); carbs_g: float = Field(ge=0, le=1000); fat_g: float = Field(ge=0, le=1000)
-    meal_type: MealType; eaten_at: datetime
+    meal_type: MealType; eaten_at: datetime = Field(default_factory=lambda: datetime.now(MADRID).replace(tzinfo=None))
+    confidence: float = Field(default=0.5, ge=0, le=1)
+    description: str | None = Field(default=None, max_length=2000)
 
 class HomeControlInput(BaseModel):
     entity_id: str = Field(pattern=r"^[a-z_]+\.[A-Za-z0-9_]+$")
@@ -149,7 +151,7 @@ def execute(call: ToolCall, user: User, db: Session, *, sensitive_confirmed: boo
             return "No puedo consultar el tiempo ahora mismo."
     if call.name == "add_meal":
         data = MealInput.model_validate(call.arguments)
-        db.add(Meal(user_id=user.id, source=MealSource.text, confidence=None, **data.model_dump())); db.commit()
+        db.add(Meal(user_id=user.id, source=MealSource.text, **data.model_dump())); db.commit()
         return f"Registrado: {data.name}, {data.kcal:.0f} kcal."
     if call.name == "get_nutrition_status":
         today = date.today(); start = datetime.combine(today, datetime.min.time()); end = datetime.combine(today, datetime.max.time())
@@ -240,8 +242,13 @@ def run_chat(
               f"Categorías del hogar: {', '.join(categories) or 'ninguna'}. Antes de crear un dato exige importe/peso, fecha y categoría inequívoca; si falta algo, pregunta y no llames herramientas. "
               f"Entidades de Casa permitidas: {', '.join(f'{item.display_name}={item.entity_id}' for item in home_entities) or 'ninguna'}. "
               "Solo usa las herramientas disponibles y no inventes resultados.")
+    system += (" En nutrición estima kcal y macros a partir de los alimentos y cantidades; nunca los pidas. "
+               "Si la descripción es demasiado vaga para estimar, pregunta qué ha comido. "
+               "Deduce meal_type de expresiones como para cenar; si no se indica hora usa la hora actual de Madrid. "
+               "Para varios platos muestra el desglose y suma kcal y macros. Indica confianza baja, media o alta y origen texto. "
+               "Incluye en add_meal confidence entre 0 y 1 y el desglose en description.")
     if gate is None:
-        system += (" Para add_meal, presenta siempre la estimación y pide una confirmación explícita antes de llamar la herramienta. "
+        system += (" Para add_meal, llama a la herramienta con la descripción y el tipo de comida; el servidor mostrará la estimación y pedirá confirmación. Tras la confirmación, vuelve a llamar con los mismos datos del resumen. "
                    "Para control_device, pide confirmación explícita antes de actuar en una entidad marcada como sensible. "
                    "Para add_calendar_event, muestra título, fecha, inicio y fin y pide confirmación explícita antes de crear.")
     else:
@@ -256,6 +263,22 @@ def run_chat(
     try:
         options = {"attachments": attachments} if attachments else {}
         reply = llm.complete(system=system, messages=messages, tools=TOOLS, **options)
+        for call in reply.tool_calls:
+            if call.name == "add_meal" and any(call.arguments.get(key) is None for key in ("kcal", "protein_g", "carbs_g", "fat_g")):
+                estimates = llm.analyze_meal(text=call.arguments.get("description") or data.message, image=None, mime_type=None)
+                if estimates:
+                    try:
+                        for key in ("kcal", "protein_g", "carbs_g", "fat_g"):
+                            if call.arguments.get(key) is None:
+                                call.arguments[key] = sum(float(item[key]) for item in estimates)
+                        call.arguments.setdefault("confidence", min(float(item.get("confidence", 0.5)) for item in estimates))
+                        call.arguments["description"] = "; ".join(
+                            f"{item['name']}: {float(item['kcal']):g} kcal, "
+                            f"proteínas {float(item['protein_g']):g} g, hidratos {float(item['carbs_g']):g} g, "
+                            f"grasas {float(item['fat_g']):g} g" for item in estimates
+                        )
+                    except (KeyError, TypeError, ValueError):
+                        pass
         if gate is not None:
             invalid_meal = False
             for call in reply.tool_calls:
@@ -268,7 +291,8 @@ def run_chat(
             if invalid_meal:
                 retry_system = (system + " La llamada anterior a add_meal tenía datos inválidos o incompletos. "
                                 "Revisa todos los campos y sus tipos según el esquema; usa breakfast, lunch, dinner o snack "
-                                "y una fecha y hora ISO 8601. Si falta información, pregunta al usuario sin llamar la herramienta.")
+                                "y estima kcal y macros a partir de la descripción. Omite la hora si no se indicó; "
+                                "pregunta solo si la descripción es demasiado vaga para estimar.")
                 reply = llm.complete(system=retry_system, messages=messages, tools=TOOLS, **options)
     except LLMQuotaExceeded as error:
         return AgentChatOut(response=str(error) + " El chat sigue disponible; vuelve a intentarlo más tarde.", actions=[])
@@ -283,6 +307,20 @@ def run_chat(
             if prompt is not None:
                 return AgentChatOut(response=prompt, actions=[])
     for call in calls:
+        if gate is None and call.name == "add_meal" and not (sensitive_confirmed and data.history and data.history[-1].role == "assistant"):
+            try:
+                meal = MealInput.model_validate(call.arguments)
+                confidence = "baja" if meal.confidence < 0.4 else "media" if meal.confidence < 0.75 else "alta"
+                details = (f"Estimación: {meal.name} ({meal.meal_type.value}), {meal.eaten_at:%d/%m/%Y a las %H:%M}. "
+                           f"Total: {meal.kcal:g} kcal · proteínas {meal.protein_g:g} g · "
+                           f"hidratos {meal.carbs_g:g} g · grasas {meal.fat_g:g} g. "
+                           f"Confianza: {confidence}. Origen: texto.")
+                if meal.description:
+                    details += f"\nDesglose: {meal.description}"
+                confirmations.append(details + "\n¿Confirmas que quieres registrarlo?")
+            except (ValidationError, ValueError, TypeError):
+                confirmations.append("No he podido estimar la comida. ¿Qué alimentos has tomado?")
+            continue
         try:
             result = run_tool(call, user, db, confirmed=sensitive_confirmed and gate is None,
                               private=gate is not None)

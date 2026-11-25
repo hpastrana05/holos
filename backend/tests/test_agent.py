@@ -74,3 +74,38 @@ def test_question_and_quota_do_not_break_chat(client):
     assert response.status_code == 200 and "chat sigue disponible" in response.json()["response"]
     response = post(client, headers, LLMUnavailable("Gemini no está disponible ahora."))
     assert response.status_code == 200 and "no está disponible" in response.json()["response"]
+
+
+def test_text_meal_estimates_multiple_dishes_and_waits_for_confirmation(client, db):
+    from app.models.models import Meal
+
+    class MealLLM:
+        def complete(self, **kwargs):
+            assert 'nunca los pidas' in kwargs['system']
+            return LLMResponse('', [ToolCall('add_meal', {'name': 'Ensalada y carcamusa', 'meal_type': 'dinner'})])
+
+        def analyze_meal(self, **kwargs):
+            assert '250 g' in kwargs['text']
+            return [
+                {'name': 'Ensalada', 'kcal': 300, 'protein_g': 25, 'carbs_g': 10, 'fat_g': 15, 'confidence': .8},
+                {'name': 'Carcamusa', 'kcal': 250, 'protein_g': 20, 'carbs_g': 8, 'fat_g': 12, 'confidence': .6},
+            ]
+
+    headers = token(client)
+    app.dependency_overrides[provider] = lambda: MealLLM()
+    try:
+        response = client.post('/agent/chat', headers=headers, json={'message': 'Para cenar ensalada 250 g y carcamusa 200 g', 'history': []})
+    finally:
+        app.dependency_overrides.pop(provider, None)
+    text = response.json()['response']
+    assert '550 kcal' in text and 'Ensalada: 300' in text and 'Carcamusa: 250' in text
+    assert 'Confianza: media' in text and 'Origen: texto' in text and '¿Confirmas' in text
+    assert db.query(Meal).count() == 0
+
+
+def test_vague_meal_is_clarified_without_saving(client, db):
+    from app.models.models import Meal
+    headers = token(client)
+    response = post(client, headers, LLMResponse('¿Qué alimentos has comido?', []))
+    assert 'alimentos' in response.json()['response']
+    assert db.query(Meal).count() == 0

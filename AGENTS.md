@@ -134,6 +134,7 @@ Usa HTTPS con `tailscale serve` (necesario para el micrófono del navegador).
 
 ## Nutrición
 - Estimaciones orientativas de kcal y macros; el usuario puede editarlas.
+- En nutrición, estima kcal, macros y hora en lugar de pedirlos; pregunta solo si la descripción es demasiado vaga.
 - Tabla `meals`: user_id, eaten_at, meal_type, name, description, kcal,
   protein_g, carbs_g, fat_g, confidence, source.
 - Las fotos no se guardan: se procesan en memoria, se reducen a ~1024 px
