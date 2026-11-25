@@ -129,6 +129,33 @@ def test_calendar_confirmation_is_bound_to_one_chat_and_action(db, monkeypatch):
     assert executed == [(call, first.id, {"confirmed": True, "private": True})]
 
 
+def test_invalid_meal_call_is_retried_before_confirmation(db):
+    user = db.query(User).first()
+    user.telegram_id = 101
+    db.commit()
+    bot, outbound = make_bot(db)
+    valid = {"name": "Consomé y merluza", "kcal": 330, "protein_g": 43,
+             "carbs_g": 2.5, "fat_g": 14.5, "meal_type": "lunch",
+             "eaten_at": "2026-11-25T14:00:00"}
+
+    class CorrectingLLM:
+        def __init__(self):
+            self.systems = []
+
+        def complete(self, *, system, messages, tools, **kwargs):
+            self.systems.append(system)
+            arguments = {**valid, "meal_type": "almuerzo"} if len(self.systems) == 1 else valid
+            return LLMResponse("", [ToolCall("add_meal", arguments)])
+
+    bot.llm = CorrectingLLM()
+    receive(bot, 101, "Registra la comida como almuerzo")
+    assert len(bot.llm.systems) == 2
+    assert "datos inválidos" in bot.llm.systems[1]
+    assert "Consomé y merluza" in outbound[-1]["text"]
+    assert "/confirmar " in outbound[-1]["text"]
+    assert db.query(AgentAction).count() == 0
+
+
 def test_gemini_and_telegram_failures_are_user_readable(db):
     user = db.query(User).first()
     user.telegram_id = 101

@@ -34,7 +34,7 @@ TOOLS = [
         {"name": "get_budget_status", "description": "Consulta presupuesto de una categoría o todas.", "parameters": {"type": "object", "properties": {"category": {"type": "string"}, "year": {"type": "integer"}, "month": {"type": "integer"}}}},
         {"name": "get_weight_status", "description": "Consulta peso, objetivo y tendencia.", "parameters": {"type": "object", "properties": {}}},
         {"name": "get_today_weather", "description": "Consulta el tiempo de hoy del hogar.", "parameters": {"type": "object", "properties": {}}},
-        {"name": "add_meal", "description": "Registra una comida solo después de que el usuario confirme explícitamente la estimación.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "carbs_g": {"type": "number"}, "fat_g": {"type": "number"}, "meal_type": {"type": "string"}, "eaten_at": {"type": "string"}}, "required": ["name", "kcal", "protein_g", "carbs_g", "fat_g", "meal_type", "eaten_at"]}},
+        {"name": "add_meal", "description": "Registra una comida solo después de que el usuario confirme explícitamente la estimación.", "parameters": {"type": "object", "properties": {"name": {"type": "string"}, "kcal": {"type": "number"}, "protein_g": {"type": "number"}, "carbs_g": {"type": "number"}, "fat_g": {"type": "number"}, "meal_type": {"type": "string", "enum": ["breakfast", "lunch", "dinner", "snack"], "description": "Desayuno, almuerzo/comida, cena o tentempié, respectivamente."}, "eaten_at": {"type": "string", "description": "Fecha y hora en formato ISO 8601, por ejemplo 2026-11-25T14:00:00."}}, "required": ["name", "kcal", "protein_g", "carbs_g", "fat_g", "meal_type", "eaten_at"]}},
         {"name": "get_nutrition_status", "description": "Consulta las kcal y macros de hoy frente al objetivo.", "parameters": {"type": "object", "properties": {}}},
         {"name": "get_home_status", "description": "Consulta el estado de los dispositivos de Casa permitidos en el hogar.", "parameters": {"type": "object", "properties": {}}},
         {"name": "get_energy_usage", "description": "Consulta el consumo de los sensores de energía permitidos.", "parameters": {"type": "object", "properties": {}}},
@@ -254,6 +254,20 @@ def run_chat(
     try:
         options = {"attachment": attachment} if attachment is not None else {}
         reply = llm.complete(system=system, messages=messages, tools=TOOLS, **options)
+        if gate is not None:
+            invalid_meal = False
+            for call in reply.tool_calls:
+                if call.name == "add_meal":
+                    try:
+                        MealInput.model_validate(call.arguments)
+                    except (ValidationError, ValueError, TypeError):
+                        invalid_meal = True
+                        break
+            if invalid_meal:
+                retry_system = (system + " La llamada anterior a add_meal tenía datos inválidos o incompletos. "
+                                "Revisa todos los campos y sus tipos según el esquema; usa breakfast, lunch, dinner o snack "
+                                "y una fecha y hora ISO 8601. Si falta información, pregunta al usuario sin llamar la herramienta.")
+                reply = llm.complete(system=retry_system, messages=messages, tools=TOOLS, **options)
     except LLMQuotaExceeded as error:
         return AgentChatOut(response=str(error) + " El chat sigue disponible; vuelve a intentarlo más tarde.", actions=[])
     except LLMUnavailable as error:

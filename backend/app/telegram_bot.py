@@ -123,6 +123,9 @@ class TelegramBot:
             else:
                 return None
         except (ValidationError, ValueError, TypeError):
+            if call.name == "add_meal":
+                return ("No he podido preparar el registro de la comida. Indica de nuevo el nombre, "
+                        "las kcal, los macronutrientes, el tipo de comida y la fecha y hora.")
             return "Necesito datos válidos antes de pedirte confirmación."
         command = f"/confirmar {token_hex(6)}"
         conversation.pending = (command, call, now + CONFIRM_TTL)
